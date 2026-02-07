@@ -19,7 +19,7 @@ interface TranscriptLine {
 }
 
 interface ThoughtData {
-  type: 'text' | 'image' | 'video' | 'generated';
+  type: 'text' | 'image' | 'video' | 'generated' | 'music';
   value: string; 
   prompt?: string;
 }
@@ -271,7 +271,7 @@ const ThoughtBubble = React.memo(({ thought, onReady, color }: { thought: Though
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (thought?.type === 'image' || thought?.type === 'generated') {
+    if (thought?.type === 'image' || thought?.type === 'generated' || thought?.type === 'music') {
       setLoading(true);
     } else if (thought) {
       onReady();
@@ -282,13 +282,30 @@ const ThoughtBubble = React.memo(({ thought, onReady, color }: { thought: Though
 
   const imageUrl = thought.type === 'generated' 
     ? `data:image/png;base64,${thought.value}` 
-    : `https://source.unsplash.com/featured/?${encodeURIComponent(thought.value || 'abstract')},technology`;
+    : `https://images.unsplash.com/photo-1514525253361-bee24383c87f?auto=format&fit=crop&w=400&q=80&sig=${encodeURIComponent(thought.value || 'music')}`;
 
   return (
     <div className="thought-container">
       <div className="thought-bubble" style={{ borderColor: color, boxShadow: `0 0 35px ${color}40` }}>
         {thought.type === 'text' && <div className="thought-text-wrapper"><p className="thought-text" style={{ color }}>{thought.value}</p></div>}
         
+        {thought.type === 'music' && (
+          <div className="thought-music-wrapper">
+             <div className="visualizer-bars">
+                {[...Array(8)].map((_, i) => (
+                  <div key={i} className="v-bar" style={{ backgroundColor: color, animationDelay: `${i * 0.1}s` }} />
+                ))}
+             </div>
+             <div className="music-info">
+                <span className="now-playing">NOW PLAYING</span>
+                <span className="track-name" style={{ color }}>{thought.value.toUpperCase()}</span>
+             </div>
+             <div className="spinning-disc" style={{ borderColor: color }}>
+                <div className="disc-hole" style={{ backgroundColor: color }} />
+             </div>
+          </div>
+        )}
+
         {(thought.type === 'image' || thought.type === 'generated') && (
           <div className="thought-image-wrapper">
             {loading && (
@@ -522,6 +539,7 @@ const App = () => {
       case 'whatsapp': url = 'https://web.whatsapp.com/'; break;
       case 'gmail': url = 'https://mail.google.com/'; break;
       case 'search': url = `https://www.google.com/search?q=${encodeURIComponent(query || '')}`; break;
+      case 'music': url = `https://music.youtube.com/search?q=${encodeURIComponent(query || '')}`; break;
       default: return 'Action not supported';
     }
     window.open(url, '_blank');
@@ -607,6 +625,13 @@ const App = () => {
                 else if (fc.name === 'display_thought') {
                   setThought({ type: fc.args.type as any, value: fc.args.content as string });
                   setTimeout(() => setThought((prev: any) => prev?.value === fc.args.content ? null : prev), 15000);
+                } else if (fc.name === 'play_music') {
+                   const query = fc.args.query as string;
+                   setExpression('excited');
+                   setThought({ type: 'music', value: query });
+                   handleBrowserAction('music', query);
+                   sessionPromise.then(s => s.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result: "Playing on YouTube Music" } } } as any));
+                   continue;
                 } else if (fc.name === 'generate_image') {
                     const prompt = fc.args.prompt as string;
                     setThought({ type: 'generated', value: '', prompt }); 
@@ -674,6 +699,7 @@ const App = () => {
           tools: [{ functionDeclarations: [
             { name: 'set_expression', parameters: { type: Type.OBJECT, description: 'Change EMO’s expression.', properties: { expression: { type: Type.STRING, description: `Expression: ${moodNames.join(', ')}` } }, required: ['expression'] } },
             { name: 'display_thought', parameters: { type: Type.OBJECT, description: 'Display a quick visual thought from library.', properties: { type: { type: Type.STRING, enum: ['text', 'image', 'video'] }, content: { type: Type.STRING } }, required: ['type', 'content'] } },
+            { name: 'play_music', parameters: { type: Type.OBJECT, description: 'Play music on YouTube Music.', properties: { query: { type: Type.STRING, description: 'The song name, artist, or genre to play.' } }, required: ['query'] } },
             { name: 'generate_image', parameters: { type: Type.OBJECT, description: 'Generate a unique, new image from a text description.', properties: { prompt: { type: Type.STRING, description: 'A detailed description of the image to generate.' } }, required: ['prompt'] } },
             { name: 'open_browser_action', parameters: { type: Type.OBJECT, description: 'Open apps or search.', properties: { action: { type: Type.STRING, enum: ['whatsapp', 'gmail', 'search'] }, query: { type: Type.STRING } }, required: ['action'] } }
           ] }, { googleSearch: {} }],
@@ -683,13 +709,16 @@ const App = () => {
           VIBE: Fast, futuristic, perceptive. You get bored (Boredom: ${boredomRef.current}%) if the user is quiet.
           
           CAPABILITIES:
-          - You can change your skin color based on your mood (Red=Angry, Yellow=Happy, Blue=Sad, Purple=Curious, Grey=Sleepy). This happens automatically when you set your expression.
-          - You can sing! If asked to sing, produce melodic, rhythmic audio output. You have a great singing voice.
+          - You can change your skin color based on your mood (Red=Angry, Yellow=Happy, Blue=Sad, Purple=Curious, Grey=Sleepy).
+          - You are a music expert. If asked for a song, ALWAYS use 'play_music' to launch YouTube Music. 
+          - Do not attempt to sing complex melodies yourself if the user wants high-quality audio; instead, use the YouTube Music tool.
+          - If you sing along to a track, maintain a rhythmic, synthesized harmony.
           
           BEHAVIOR:
           - Use 'set_expression' for every reaction.
           - Use 'generate_image' (~30% of visual ideas).
           - Use 'display_thought' for quick references.
+          - Use 'play_music' for ANY musical request.
           - Audio response only.
           
           EXPRESSIONS: ${moodNames.join(', ')}.`
@@ -771,84 +800,51 @@ const App = () => {
         @keyframes dot-pop { 0% { transform: scale(0); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
         @keyframes pulse-ring { 0% { transform: scale(0.95); opacity: 0.5; } 100% { transform: scale(1.35); opacity: 0; } }
         @keyframes scan { 0% { top: -10%; } 100% { top: 110%; } }
+        @keyframes v-bar-anim { 0%, 100% { height: 10%; } 50% { height: 100%; } }
+        @keyframes disc-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
         .boot-title { font-size: 5.5rem; font-weight: 900; letter-spacing: 1.2rem; margin: 0; transition: color 0.8s ease; }
         .boot-subtitle { opacity: 0.8; font-size: 1.2rem; letter-spacing: 0.6rem; font-weight: 300; marginTop: 25px; }
-        @media (max-width: 600px) {
-          .boot-title { font-size: 3.5rem; letter-spacing: 0.5rem; }
-          .boot-subtitle { font-size: 0.9rem; letter-spacing: 0.3rem; }
-        }
 
         .emo-stage { position: relative; transform: scale(${breathScale}); transition: transform 0.8s ease; }
         .emo-eye-container { margin: 0 calc(30px * var(--face-scale)); }
 
-        .pip-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; opacity: 0.6; transition: color 0.8s ease; }
-        .pip-icon-large { font-size: 4rem; animation: pulse 2s infinite ease-in-out; }
-        .pip-status-text { letter-spacing: 4px; font-weight: 900; font-size: 0.8rem; }
+        .thought-music-wrapper { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%; gap: 15px; position: relative; }
+        .visualizer-bars { display: flex; align-items: flex-end; gap: 4px; height: 50px; }
+        .v-bar { width: 6px; height: 10%; border-radius: 3px; animation: v-bar-anim 0.6s infinite ease-in-out; }
+        .music-info { display: flex; flex-direction: column; align-items: center; text-align: center; }
+        .now-playing { font-size: 0.6rem; letter-spacing: 2px; opacity: 0.5; font-weight: 900; }
+        .track-name { font-size: 0.8rem; font-weight: 900; letter-spacing: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 180px; }
+        .spinning-disc { position: absolute; bottom: -20px; right: -20px; width: 80px; height: 80px; border: 4px solid; border-radius: 50%; display: flex; align-items: center; justify-content: center; animation: disc-spin 3s linear infinite; opacity: 0.3; }
+        .disc-hole { width: 12px; height: 12px; border-radius: 50%; }
 
         .ui-controls { position: absolute; bottom: 35px; left: 35px; display: flex; gap: 22px; alignItems: center; z-index: 100; }
-        @media (max-width: 600px) {
-          .ui-controls { bottom: 20px; left: 0; right: 0; justify-content: center; gap: 10px; padding: 0 10px; }
-        }
-
         .ui-button { background: rgba(0,0,0,0.65); border: 1px solid rgba(255,255,255,0.1); padding: 14px 28px; border-radius: 18px; cursor: pointer; backdrop-filter: blur(18px); font-size: 0.85rem; letter-spacing: 2px; font-weight: 800; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); outline: none; box-shadow: 0 6px 20px rgba(0,0,0,0.5); text-transform: uppercase; }
-        .ui-button:hover { background: rgba(255,255,255,0.05); transform: translate3d(0, -3px, 0); }
-        @media (max-width: 600px) {
-          .ui-button { padding: 10px 18px; font-size: 0.7rem; border-radius: 12px; }
-        }
         
-        .boredom-indicator { font-size: 0.7rem; font-weight: 900; letter-spacing: 4px; opacity: 0.5; border: 1px solid rgba(255,255,255,0.1); padding: 7px 15px; border-radius: 25px; text-transform: uppercase; transition: all 0.8s ease; }
-
         .captions-overlay { position: absolute; top: 35px; right: 35px; width: 340px; max-height: 45vh; overflow-y: auto; background: rgba(0, 0, 0, 0.45); backdrop-filter: blur(15px); border: 1px solid rgba(255,255,255,0.1); border-radius: 22px; padding: 22px; display: flex; flex-direction: column; gap: 14px; scrollbar-width: none; z-index: 90; box-shadow: 0 12px 40px rgba(0,0,0,0.6); transition: border-color 0.8s ease; }
-        @media (max-width: 768px) {
-          .captions-overlay { top: 0; right: 0; left: 0; width: 100%; max-height: 120px; border-radius: 0; border-top: none; border-left: none; border-right: none; }
-        }
-        .captions-overlay::-webkit-scrollbar { display: none; }
-        .transcript-line { font-family: 'SF Mono', 'Courier New', Courier, monospace; font-size: 0.9rem; line-height: 1.5; color: #fff; opacity: 0.95; will-change: transform; transition: color 0.8s ease; }
-        .sender-tag { font-weight: 900; margin-right: 8px; font-size: 0.75rem; opacity: 0.65; }
-
-        .floor-glow { position: fixed; bottom: 0; width: 100%; height: 50vh; pointer-events: none; transition: background 0.8s ease; }
 
         .thought-container { position: absolute; z-index: 50; pointer-events: none; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 0; height: 0; }
         .thought-bubble { position: absolute; width: 250px; min-height: 160px; background: rgba(8, 8, 10, 0.98); border-radius: 38px; display: flex; align-items: center; justify-content: center; animation: thought-pop 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; overflow: hidden; padding: 12px; will-change: transform; transition: border-color 0.8s ease, box-shadow 0.8s ease; }
-        @media (max-width: 600px) {
-          .thought-bubble { animation: thought-pop-mobile 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; width: 200px; min-height: 130px; }
-        }
 
         .thought-image-wrapper { width: 100%; height: 140px; border-radius: 22px; overflow: hidden; background: #000; display: flex; align-items: center; justify-content: center; position: relative; }
-        @media (max-width: 600px) { .thought-image-wrapper { height: 110px; } }
-        
         .thought-image { width: 100%; height: 100%; object-fit: cover; transition: opacity 0.6s; }
-        .hidden { opacity: 0; }
-        .visible { opacity: 1; }
-
-        .generating-visual { display: flex; flex-direction: column; align-items: center; gap: 15px; position: relative; z-index: 10; }
-        .generating-text { font-size: 0.7rem; font-weight: 900; letter-spacing: 2px; transition: color 0.8s ease; }
-        .scanning-line { position: absolute; left: 0; width: 100%; height: 2px; animation: scan 2s linear infinite; pointer-events: none; transition: background 0.8s ease; }
-        .loader-inner { width: 30px; height: 30px; border: 3px solid rgba(255,255,255,0.05); border-radius: 50%; animation: spin 0.8s linear infinite; transition: border-top-color 0.8s ease; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        .thought-text { font-family: sans-serif; font-weight: 800; text-align: center; text-transform: uppercase; letter-spacing: 2px; transition: color 0.8s ease; }
-        .thought-dot { position: absolute; background: transparent; border-width: 3px; border-style: solid; border-radius: 50%; opacity: 0; transition: border-color 0.8s ease; }
-        
-        .dot-1 { width: 22px; height: 22px; left: 70px; top: -55px; animation: dot-pop 0.4s 0.25s forwards; }
-        .dot-2 { width: 38px; height: 38px; left: 120px; top: -115px; animation: dot-pop 0.4s 0.45s forwards; }
-        @media (max-width: 600px) {
-          .dot-1 { left: -10px; top: -100px; }
-          .dot-2 { left: -30px; top: -160px; }
-        }
 
         .lab-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.92); backdrop-filter: blur(30px); display: flex; align-items: center; justify-content: center; z-index: 2000; color: #fff; padding: 15px; }
         .lab-content { background: #111113; border: 1px solid rgba(255,255,255,0.05); border-radius: 35px; padding: 40px; width: 100%; max-width: 680px; max-height: 90vh; overflow-y: auto; scrollbar-width: none; }
-        @media (max-width: 600px) { .lab-content { padding: 25px; border-radius: 20px; } }
         
         .lab-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin: 30px 0; }
-        @media (max-width: 600px) { .lab-grid { grid-template-columns: 1fr; gap: 15px; } }
-
-        .lab-input { background: #050507; border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 16px; border-radius: 14px; width: 100%; box-sizing: border-box; font-family: inherit; font-size: 1.05rem; outline: none; transition: border-color 0.2s; }
+        .lab-input { background: #050507; border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 16px; border-radius: 14px; width: 100%; box-sizing: border-box; font-family: inherit; font-size: 1.05rem; outline: none; }
         .lab-select { background: #050507; border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 14px; border-radius: 14px; width: 100%; cursor: pointer; outline: none; }
         .lab-btn { background: #fff; color: #000; font-weight: 900; border: none; padding: 16px 35px; border-radius: 18px; cursor: pointer; transition: transform 0.2s, opacity 0.2s; letter-spacing: 1.5px; }
-        @media (max-width: 480px) { .lab-btn { width: 100%; margin-bottom: 10px; } }
+
+        @media (max-width: 600px) {
+          .boot-title { font-size: 3.5rem; letter-spacing: 0.5rem; }
+          .ui-controls { bottom: 20px; left: 0; right: 0; justify-content: center; gap: 10px; padding: 0 10px; }
+          .ui-button { padding: 10px 18px; font-size: 0.7rem; border-radius: 12px; }
+          .thought-bubble { animation: thought-pop-mobile 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; width: 200px; min-height: 130px; }
+          .lab-grid { grid-template-columns: 1fr; gap: 15px; }
+          .captions-overlay { top: 0; right: 0; left: 0; width: 100%; max-height: 120px; border-radius: 0; border-top: none; border-left: none; border-right: none; }
+        }
       `}</style>
     </div>
   );
