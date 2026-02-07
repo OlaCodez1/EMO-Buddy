@@ -24,7 +24,29 @@ interface ThoughtData {
   prompt?: string;
 }
 
-const EMO_COLOR = '#00f2ff';
+// --- Dynamic Color Mapping ---
+const getMoodColor = (exp: string): string => {
+  switch (exp) {
+    case 'angry':
+    case 'annoyed':
+      return '#ff3333'; // Red
+    case 'happy':
+    case 'excited':
+      return '#ffea00'; // Yellow/Gold
+    case 'sad':
+      return '#3366ff'; // Blue
+    case 'thinking':
+    case 'thoughtful':
+    case 'curious':
+      return '#bc13fe'; // Purple
+    case 'sleepy':
+      return '#a0a0a0'; // Grey
+    case 'surprised':
+      return '#ff8c00'; // Orange
+    default:
+      return '#00f2ff'; // Default Cyan
+  }
+};
 
 // --- Utility Functions ---
 function encode(bytes: Uint8Array) {
@@ -86,7 +108,8 @@ const EmoEye = React.memo(({
   expression,
   isLeft,
   isStartled,
-  breathScale
+  breathScale,
+  color
 }: { 
   state: string, 
   lookOffset: { x: number, y: number },
@@ -94,7 +117,8 @@ const EmoEye = React.memo(({
   expression: Expression,
   isLeft: boolean,
   isStartled: boolean,
-  breathScale: number
+  breathScale: number,
+  color: string
 }) => {
   const [blink, setBlink] = useState(false);
   
@@ -144,10 +168,10 @@ const EmoEye = React.memo(({
   const eyeStyle: React.CSSProperties = {
     width: `${width}px`,
     height: `${height}px`,
-    backgroundColor: EMO_COLOR,
+    backgroundColor: color,
     borderRadius: borderRadius,
-    boxShadow: `0 0 ${stateGlow}px ${EMO_COLOR}B3, inset 0 0 18px rgba(255, 255, 255, 0.45)`,
-    transition: isStartled ? 'all 0.05s ease-out' : 'all 0.22s cubic-bezier(0.19, 1, 0.22, 1)',
+    boxShadow: `0 0 ${stateGlow}px ${color}B3, inset 0 0 18px rgba(255, 255, 255, 0.45)`,
+    transition: isStartled ? 'all 0.05s ease-out' : 'all 0.22s cubic-bezier(0.19, 1, 0.22, 1), background-color 0.8s ease',
     transform: `translate3d(${lookOffset.x}px, ${lookOffset.y + translateY}px, 0) scaleY(${scaleY}) rotate(${rotate}deg) scale(${voiceScale * startleScale * breathScale})`,
     position: 'relative',
     display: 'flex',
@@ -158,7 +182,7 @@ const EmoEye = React.memo(({
 
   return (
     <div className="emo-eye-container" style={{ perspective: '800px', position: 'relative' }}>
-      {isListening && <div className="listening-ring" style={{ position: 'absolute', top: '-15%', left: '-15%', width: '130%', height: '130%', border: `2px solid ${EMO_COLOR}`, borderRadius: borderRadius, opacity: 0.3, animation: 'pulse-ring 1.2s infinite ease-out' }} />}
+      {isListening && <div className="listening-ring" style={{ position: 'absolute', top: '-15%', left: '-15%', width: '130%', height: '130%', border: `2px solid ${color}`, borderRadius: borderRadius, opacity: 0.3, animation: 'pulse-ring 1.2s infinite ease-out' }} />}
       <div style={eyeStyle}>
         <div style={{ position: 'absolute', top: '15%', left: '15%', width: '22%', height: '22%', background: 'rgba(255,255,255,0.6)', borderRadius: '5px', opacity: (blink || (activeExpression === 'wink' && !isLeft)) ? 0 : 1, transition: 'opacity 0.08s' }} />
       </div>
@@ -166,7 +190,7 @@ const EmoEye = React.memo(({
   );
 });
 
-const EmoMouth = React.memo(({ state, lookOffset, intensity, expression, isStartled, breathScale }: { state: string, lookOffset: { x: number, y: number }, intensity: number, expression: Expression, isStartled: boolean, breathScale: number }) => {
+const EmoMouth = React.memo(({ state, lookOffset, intensity, expression, isStartled, breathScale, color }: { state: string, lookOffset: { x: number, y: number }, intensity: number, expression: Expression, isStartled: boolean, breathScale: number, color: string }) => {
   let width = 38, height = 8, borderRadius = '7px', rotate = 0;
   const mouthX = lookOffset.x * 0.48, mouthY = lookOffset.y * 0.38;
   let activeExpression = isStartled ? 'surprised' : expression;
@@ -195,18 +219,18 @@ const EmoMouth = React.memo(({ state, lookOffset, intensity, expression, isStart
     <div style={{
       width: `${width}px`,
       height: `${height}px`,
-      backgroundColor: EMO_COLOR,
+      backgroundColor: color,
       borderRadius: borderRadius,
-      boxShadow: `0 0 ${14 + intensity * 25}px ${EMO_COLOR}80`,
+      boxShadow: `0 0 ${14 + intensity * 25}px ${color}80`,
       marginTop: '48px',
       transform: `translate3d(${mouthX}px, ${mouthY}px, 0) rotate(${rotate}deg) scale(${isStartled ? 1.2 : 1 * breathScale})`,
-      transition: 'all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+      transition: 'all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), background-color 0.8s ease',
       willChange: 'transform, width, height'
     }} />
   );
 });
 
-const EmoFace = ({ status, lookOffset, intensity, expression, isStartled, customMap, breathScale, boredom }: any) => {
+const EmoFace = ({ status, lookOffset, intensity, expression, isStartled, customMap, breathScale, boredom, color }: any) => {
   const isCustom = customMap[expression];
   let eyeExp = isCustom ? isCustom.eyeBase : expression;
   let mouthExp = isCustom ? isCustom.mouthBase : expression;
@@ -233,17 +257,17 @@ const EmoFace = ({ status, lookOffset, intensity, expression, isStartled, custom
         transition: 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1.5)' 
       }}>
       <div style={{ display: 'flex', gap: 'calc(60px * var(--face-scale))' }}>
-        <EmoEye state={status} lookOffset={lookOffset} intensity={intensity} expression={eyeExp} isLeft={true} isStartled={isStartled} breathScale={breathScale} />
-        <EmoEye state={status} lookOffset={lookOffset} intensity={intensity} expression={eyeExp} isLeft={false} isStartled={isStartled} breathScale={breathScale} />
+        <EmoEye state={status} lookOffset={lookOffset} intensity={intensity} expression={eyeExp} isLeft={true} isStartled={isStartled} breathScale={breathScale} color={color} />
+        <EmoEye state={status} lookOffset={lookOffset} intensity={intensity} expression={eyeExp} isLeft={false} isStartled={isStartled} breathScale={breathScale} color={color} />
       </div>
-      <EmoMouth state={status} lookOffset={lookOffset} intensity={intensity} expression={mouthExp} isStartled={isStartled} breathScale={breathScale} />
+      <EmoMouth state={status} lookOffset={lookOffset} intensity={intensity} expression={mouthExp} isStartled={isStartled} breathScale={breathScale} color={color} />
     </div>
   );
 };
 
 // --- Thought Components ---
 
-const ThoughtBubble = React.memo(({ thought, onReady }: { thought: ThoughtData | null, onReady: () => void }) => {
+const ThoughtBubble = React.memo(({ thought, onReady, color }: { thought: ThoughtData | null, onReady: () => void, color: string }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -256,22 +280,26 @@ const ThoughtBubble = React.memo(({ thought, onReady }: { thought: ThoughtData |
 
   if (!thought) return null;
 
+  const imageUrl = thought.type === 'generated' 
+    ? `data:image/png;base64,${thought.value}` 
+    : `https://source.unsplash.com/featured/?${encodeURIComponent(thought.value || 'abstract')},technology`;
+
   return (
     <div className="thought-container">
-      <div className="thought-bubble">
-        {thought.type === 'text' && <div className="thought-text-wrapper"><p className="thought-text">{thought.value}</p></div>}
+      <div className="thought-bubble" style={{ borderColor: color, boxShadow: `0 0 35px ${color}40` }}>
+        {thought.type === 'text' && <div className="thought-text-wrapper"><p className="thought-text" style={{ color }}>{thought.value}</p></div>}
         
         {(thought.type === 'image' || thought.type === 'generated') && (
           <div className="thought-image-wrapper">
             {loading && (
               <div className="generating-visual">
-                <div className="loader-inner" />
-                <div className="generating-text">PROCESSING...</div>
-                <div className="scanning-line" />
+                <div className="loader-inner" style={{ borderTopColor: color }} />
+                <div className="generating-text" style={{ color }}>PROCESSING...</div>
+                <div className="scanning-line" style={{ background: color, boxShadow: `0 0 10px ${color}` }} />
               </div>
             )}
             <img 
-              src={thought.type === 'generated' ? `data:image/png;base64,${thought.value}` : `https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?auto=format&fit=crop&w=400&q=80&sig=${encodeURIComponent(thought.value)}`} 
+              src={imageUrl} 
               alt="thought" 
               className={`thought-image ${loading ? 'hidden' : 'visible'}`} 
               onLoad={() => { setLoading(false); onReady(); }} 
@@ -281,9 +309,9 @@ const ThoughtBubble = React.memo(({ thought, onReady }: { thought: ThoughtData |
           </div>
         )}
 
-        {thought.type === 'video' && <div className="thought-video-wrapper"><svg className="video-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={EMO_COLOR} strokeWidth="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><p className="video-link-text">Watch Video</p><a href={thought.value} target="_blank" rel="noopener noreferrer" className="video-overlay-link">.</a></div>}
+        {thought.type === 'video' && <div className="thought-video-wrapper"><svg className="video-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><p className="video-link-text">Watch Video</p><a href={thought.value} target="_blank" rel="noopener noreferrer" className="video-overlay-link">.</a></div>}
       </div>
-      <div className="thought-dot dot-1" /><div className="thought-dot dot-2" />
+      <div className="thought-dot dot-1" style={{ borderColor: color }} /><div className="thought-dot dot-2" style={{ borderColor: color }} />
     </div>
   );
 });
@@ -307,6 +335,9 @@ const App = () => {
   const [transcriptionLines, setTranscriptionLines] = useState<TranscriptLine[]>([]);
   const [showLab, setShowLab] = useState(false);
   const [isPipActive, setIsPipActive] = useState(false);
+
+  // Dynamic Theme Color based on Expression
+  const themeColor = useMemo(() => getMoodColor(expression), [expression]);
 
   const [customExpressions, setCustomExpressions] = useState<Record<string, CustomExpression>>(() => {
     const saved = localStorage.getItem('emo_custom_moods');
@@ -342,6 +373,11 @@ const App = () => {
     }, 3500);
     return () => clearInterval(interval);
   }, []);
+
+  // Sync Global CSS Variables
+  useEffect(() => {
+    document.documentElement.style.setProperty('--emo-color', themeColor);
+  }, [themeColor]);
 
   // Optimized Render Loop
   useEffect(() => {
@@ -427,9 +463,7 @@ const App = () => {
         }
       });
 
-      // Mirror CSS variables
-      const rootStyle = getComputedStyle(document.documentElement);
-      pipWindow.document.documentElement.style.setProperty('--emo-color', rootStyle.getPropertyValue('--emo-color'));
+      pipWindow.document.documentElement.style.setProperty('--emo-color', themeColor);
       pipWindow.document.documentElement.style.setProperty('--face-scale', '1');
       pipWindow.document.body.style.backgroundColor = '#0c0c0e';
       pipWindow.document.body.style.margin = '0';
@@ -456,7 +490,6 @@ const App = () => {
     }
   };
 
-  // Re-render PiP content when state changes
   useEffect(() => {
     if (isPipActive && pipRootRef.current) {
       pipRootRef.current.render(
@@ -470,11 +503,12 @@ const App = () => {
             customMap={customExpressions} 
             breathScale={breathScale} 
             boredom={boredom} 
+            color={themeColor}
           />
         </div>
       );
     }
-  }, [isPipActive, status, expression, intensity, isStartled, customExpressions, breathScale, boredom, springPosRef.current]);
+  }, [isPipActive, status, expression, intensity, isStartled, customExpressions, breathScale, boredom, springPosRef.current, themeColor]);
 
   const saveCustomMood = useCallback((mood: CustomExpression) => {
     const updated = { ...customExpressions, [mood.name]: mood };
@@ -648,6 +682,10 @@ const App = () => {
           
           VIBE: Fast, futuristic, perceptive. You get bored (Boredom: ${boredomRef.current}%) if the user is quiet.
           
+          CAPABILITIES:
+          - You can change your skin color based on your mood (Red=Angry, Yellow=Happy, Blue=Sad, Purple=Curious, Grey=Sleepy). This happens automatically when you set your expression.
+          - You can sing! If asked to sing, produce melodic, rhythmic audio output. You have a great singing voice.
+          
           BEHAVIOR:
           - Use 'set_expression' for every reaction.
           - Use 'generate_image' (~30% of visual ideas).
@@ -668,8 +706,8 @@ const App = () => {
     <div style={{ width: '100vw', height: '100vh', backgroundColor: '#0c0c0e', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }} onClick={!isActive && !isConnecting ? startEmo : undefined}>
       
       {!isActive && (
-        <div style={{ color: EMO_COLOR, textAlign: 'center', animation: isConnecting ? 'pulse 1s infinite' : 'flicker 2.5s infinite', padding: '20px' }}>
-          <h1 className="boot-title">{isConnecting ? 'BOOTING' : 'EMO'}</h1>
+        <div style={{ color: themeColor, textAlign: 'center', animation: isConnecting ? 'pulse 1s infinite' : 'flicker 2.5s infinite', padding: '20px' }}>
+          <h1 className="boot-title" style={{ textShadow: `0 0 35px ${themeColor}70` }}>{isConnecting ? 'BOOTING' : 'EMO'}</h1>
           <p className="boot-subtitle">{error || (isConnecting ? 'INITIATING...' : 'TAP TO WAKE')}</p>
         </div>
       )}
@@ -678,43 +716,43 @@ const App = () => {
         <>
           <div className="emo-stage">
             {isPipActive ? (
-              <div className="pip-placeholder">
+              <div className="pip-placeholder" style={{ color: themeColor }}>
                 <div className="pip-icon-large">⧉</div>
                 <div className="pip-status-text">EMO IS FLOATING</div>
               </div>
             ) : (
               <>
-                <ThoughtBubble thought={thought} onReady={() => {}} />
-                <EmoFace status={status} lookOffset={springPosRef.current} intensity={intensity} expression={expression} isStartled={isStartled} customMap={customExpressions} breathScale={breathScale} boredom={boredom} />
+                <ThoughtBubble thought={thought} onReady={() => {}} color={themeColor} />
+                <EmoFace status={status} lookOffset={springPosRef.current} intensity={intensity} expression={expression} isStartled={isStartled} customMap={customExpressions} breathScale={breathScale} boredom={boredom} color={themeColor} />
               </>
             )}
           </div>
 
           {showCaptions && (
-            <div className="captions-overlay" ref={transcriptScrollRef}>
+            <div className="captions-overlay" style={{ borderColor: `${themeColor}40` }} ref={transcriptScrollRef}>
               {transcriptionLines.map(line => (
-                <div key={line.id} className={`transcript-line ${line.sender === 'YOU' ? 'user' : 'emo'}`}><span className="sender-tag">{line.sender}:</span> {line.text}</div>
+                <div key={line.id} className={`transcript-line ${line.sender === 'YOU' ? 'user' : 'emo'}`} style={line.sender === 'EMO' ? {color: themeColor} : {}}><span className="sender-tag">{line.sender}:</span> {line.text}</div>
               ))}
               {transcriptionLines.length === 0 && <div className="no-captions">AWAITING SIGNAL...</div>}
             </div>
           )}
 
           <div className="ui-controls" onMouseEnter={() => setHoveringUI(true)} onMouseLeave={() => setHoveringUI(false)}>
-            <button onClick={(e) => { e.stopPropagation(); setShowLab(true); }} className="ui-button">MOOD LAB</button>
-            <button onClick={(e) => { e.stopPropagation(); setShowCaptions(!showCaptions); }} className={`ui-button ${showCaptions ? 'active' : ''}`}>CAPTIONS</button>
-            <button onClick={togglePip} className={`ui-button ${isPipActive ? 'active' : ''}`}>PIP</button>
-            {boredom > 30 && <div className="boredom-indicator">{boredom > 80 ? 'SLEEPY...' : 'BORED'}</div>}
+            <button onClick={(e) => { e.stopPropagation(); setShowLab(true); }} className="ui-button" style={{ color: themeColor, borderColor: `${themeColor}40` }}>MOOD LAB</button>
+            <button onClick={(e) => { e.stopPropagation(); setShowCaptions(!showCaptions); }} className={`ui-button ${showCaptions ? 'active' : ''}`} style={showCaptions ? { background: themeColor, color: '#000' } : { color: themeColor, borderColor: `${themeColor}40` }}>CAPTIONS</button>
+            <button onClick={togglePip} className={`ui-button ${isPipActive ? 'active' : ''}`} style={isPipActive ? { background: themeColor, color: '#000' } : { color: themeColor, borderColor: `${themeColor}40` }}>PIP</button>
+            {boredom > 30 && <div className="boredom-indicator" style={{ color: themeColor, borderColor: `${themeColor}30` }}>{boredom > 80 ? 'SLEEPY...' : 'BORED'}</div>}
           </div>
         </>
       )}
 
-      {showLab && <MoodLab onClose={() => setShowLab(false)} onSave={saveCustomMood} existing={customExpressions} />}
-      <div className="floor-glow" />
+      {showLab && <MoodLab onClose={() => setShowLab(false)} onSave={saveCustomMood} existing={customExpressions} color={themeColor} />}
+      <div className="floor-glow" style={{ background: `radial-gradient(circle at 50% 135%, ${themeColor}18, transparent 70%)` }} />
 
       <style>{`
         :root {
           --face-scale: 1;
-          --emo-color: ${EMO_COLOR};
+          --emo-color: #00f2ff;
         }
 
         @media (max-width: 768px) {
@@ -734,7 +772,7 @@ const App = () => {
         @keyframes pulse-ring { 0% { transform: scale(0.95); opacity: 0.5; } 100% { transform: scale(1.35); opacity: 0; } }
         @keyframes scan { 0% { top: -10%; } 100% { top: 110%; } }
 
-        .boot-title { font-size: 5.5rem; font-weight: 900; letter-spacing: 1.2rem; margin: 0; text-shadow: 0 0 35px ${EMO_COLOR}70; }
+        .boot-title { font-size: 5.5rem; font-weight: 900; letter-spacing: 1.2rem; margin: 0; transition: color 0.8s ease; }
         .boot-subtitle { opacity: 0.8; font-size: 1.2rem; letter-spacing: 0.6rem; font-weight: 300; marginTop: 25px; }
         @media (max-width: 600px) {
           .boot-title { font-size: 3.5rem; letter-spacing: 0.5rem; }
@@ -744,7 +782,7 @@ const App = () => {
         .emo-stage { position: relative; transform: scale(${breathScale}); transition: transform 0.8s ease; }
         .emo-eye-container { margin: 0 calc(30px * var(--face-scale)); }
 
-        .pip-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; color: ${EMO_COLOR}; opacity: 0.6; }
+        .pip-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; opacity: 0.6; transition: color 0.8s ease; }
         .pip-icon-large { font-size: 4rem; animation: pulse 2s infinite ease-in-out; }
         .pip-status-text { letter-spacing: 4px; font-weight: 900; font-size: 0.8rem; }
 
@@ -753,28 +791,26 @@ const App = () => {
           .ui-controls { bottom: 20px; left: 0; right: 0; justify-content: center; gap: 10px; padding: 0 10px; }
         }
 
-        .ui-button { background: rgba(0,0,0,0.65); border: 1px solid ${EMO_COLOR}40; color: ${EMO_COLOR}; padding: 14px 28px; border-radius: 18px; cursor: pointer; backdrop-filter: blur(18px); font-size: 0.85rem; letter-spacing: 2px; font-weight: 800; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); outline: none; box-shadow: 0 6px 20px rgba(0,0,0,0.5); text-transform: uppercase; }
-        .ui-button:hover { background: ${EMO_COLOR}25; border-color: ${EMO_COLOR}; box-shadow: 0 0 25px ${EMO_COLOR}50; transform: translate3d(0, -3px, 0); }
-        .ui-button.active { background: ${EMO_COLOR}; color: #000; border-color: #fff; }
+        .ui-button { background: rgba(0,0,0,0.65); border: 1px solid rgba(255,255,255,0.1); padding: 14px 28px; border-radius: 18px; cursor: pointer; backdrop-filter: blur(18px); font-size: 0.85rem; letter-spacing: 2px; font-weight: 800; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); outline: none; box-shadow: 0 6px 20px rgba(0,0,0,0.5); text-transform: uppercase; }
+        .ui-button:hover { background: rgba(255,255,255,0.05); transform: translate3d(0, -3px, 0); }
         @media (max-width: 600px) {
           .ui-button { padding: 10px 18px; font-size: 0.7rem; border-radius: 12px; }
         }
         
-        .boredom-indicator { color: ${EMO_COLOR}; font-size: 0.7rem; font-weight: 900; letter-spacing: 4px; opacity: 0.5; border: 1px solid ${EMO_COLOR}30; padding: 7px 15px; border-radius: 25px; text-transform: uppercase; }
+        .boredom-indicator { font-size: 0.7rem; font-weight: 900; letter-spacing: 4px; opacity: 0.5; border: 1px solid rgba(255,255,255,0.1); padding: 7px 15px; border-radius: 25px; text-transform: uppercase; transition: all 0.8s ease; }
 
-        .captions-overlay { position: absolute; top: 35px; right: 35px; width: 340px; max-height: 45vh; overflow-y: auto; background: rgba(0, 0, 0, 0.45); backdrop-filter: blur(15px); border: 1px solid ${EMO_COLOR}25; border-radius: 22px; padding: 22px; display: flex; flex-direction: column; gap: 14px; scrollbar-width: none; z-index: 90; box-shadow: 0 12px 40px rgba(0,0,0,0.6); }
+        .captions-overlay { position: absolute; top: 35px; right: 35px; width: 340px; max-height: 45vh; overflow-y: auto; background: rgba(0, 0, 0, 0.45); backdrop-filter: blur(15px); border: 1px solid rgba(255,255,255,0.1); border-radius: 22px; padding: 22px; display: flex; flex-direction: column; gap: 14px; scrollbar-width: none; z-index: 90; box-shadow: 0 12px 40px rgba(0,0,0,0.6); transition: border-color 0.8s ease; }
         @media (max-width: 768px) {
           .captions-overlay { top: 0; right: 0; left: 0; width: 100%; max-height: 120px; border-radius: 0; border-top: none; border-left: none; border-right: none; }
         }
         .captions-overlay::-webkit-scrollbar { display: none; }
-        .transcript-line { font-family: 'SF Mono', 'Courier New', Courier, monospace; font-size: 0.9rem; line-height: 1.5; color: #fff; opacity: 0.95; will-change: transform; }
-        .transcript-line.emo { color: ${EMO_COLOR}; }
+        .transcript-line { font-family: 'SF Mono', 'Courier New', Courier, monospace; font-size: 0.9rem; line-height: 1.5; color: #fff; opacity: 0.95; will-change: transform; transition: color 0.8s ease; }
         .sender-tag { font-weight: 900; margin-right: 8px; font-size: 0.75rem; opacity: 0.65; }
 
-        .floor-glow { position: fixed; bottom: 0; width: 100%; height: 50vh; background: radial-gradient(circle at 50% 135%, ${EMO_COLOR}18, transparent 70%); pointer-events: none; }
+        .floor-glow { position: fixed; bottom: 0; width: 100%; height: 50vh; pointer-events: none; transition: background 0.8s ease; }
 
         .thought-container { position: absolute; z-index: 50; pointer-events: none; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 0; height: 0; }
-        .thought-bubble { position: absolute; width: 250px; min-height: 160px; background: rgba(8, 8, 10, 0.98); border: 5px solid ${EMO_COLOR}; border-radius: 38px; display: flex; align-items: center; justify-content: center; animation: thought-pop 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; overflow: hidden; padding: 12px; box-shadow: 0 0 35px ${EMO_COLOR}40; will-change: transform; }
+        .thought-bubble { position: absolute; width: 250px; min-height: 160px; background: rgba(8, 8, 10, 0.98); border-radius: 38px; display: flex; align-items: center; justify-content: center; animation: thought-pop 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; overflow: hidden; padding: 12px; will-change: transform; transition: border-color 0.8s ease, box-shadow 0.8s ease; }
         @media (max-width: 600px) {
           .thought-bubble { animation: thought-pop-mobile 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; width: 200px; min-height: 130px; }
         }
@@ -787,13 +823,13 @@ const App = () => {
         .visible { opacity: 1; }
 
         .generating-visual { display: flex; flex-direction: column; align-items: center; gap: 15px; position: relative; z-index: 10; }
-        .generating-text { color: ${EMO_COLOR}; font-size: 0.7rem; font-weight: 900; letter-spacing: 2px; }
-        .scanning-line { position: absolute; left: 0; width: 100%; height: 2px; background: ${EMO_COLOR}; box-shadow: 0 0 10px ${EMO_COLOR}; animation: scan 2s linear infinite; pointer-events: none; }
-        .loader-inner { width: 30px; height: 30px; border: 3px solid ${EMO_COLOR}20; border-top-color: ${EMO_COLOR}; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        .generating-text { font-size: 0.7rem; font-weight: 900; letter-spacing: 2px; transition: color 0.8s ease; }
+        .scanning-line { position: absolute; left: 0; width: 100%; height: 2px; animation: scan 2s linear infinite; pointer-events: none; transition: background 0.8s ease; }
+        .loader-inner { width: 30px; height: 30px; border: 3px solid rgba(255,255,255,0.05); border-radius: 50%; animation: spin 0.8s linear infinite; transition: border-top-color 0.8s ease; }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        .thought-text { color: ${EMO_COLOR}; font-family: sans-serif; font-weight: 800; text-align: center; text-transform: uppercase; text-shadow: 0 0 15px ${EMO_COLOR}90; letter-spacing: 2px; }
-        .thought-dot { position: absolute; background: transparent; border: 3px solid ${EMO_COLOR}; border-radius: 50%; opacity: 0; }
+        .thought-text { font-family: sans-serif; font-weight: 800; text-align: center; text-transform: uppercase; letter-spacing: 2px; transition: color 0.8s ease; }
+        .thought-dot { position: absolute; background: transparent; border-width: 3px; border-style: solid; border-radius: 50%; opacity: 0; transition: border-color 0.8s ease; }
         
         .dot-1 { width: 22px; height: 22px; left: 70px; top: -55px; animation: dot-pop 0.4s 0.25s forwards; }
         .dot-2 { width: 38px; height: 38px; left: 120px; top: -115px; animation: dot-pop 0.4s 0.45s forwards; }
@@ -803,22 +839,22 @@ const App = () => {
         }
 
         .lab-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.92); backdrop-filter: blur(30px); display: flex; align-items: center; justify-content: center; z-index: 2000; color: #fff; padding: 15px; }
-        .lab-content { background: #111113; border: 1px solid ${EMO_COLOR}25; border-radius: 35px; padding: 40px; width: 100%; max-width: 680px; max-height: 90vh; overflow-y: auto; scrollbar-width: none; }
+        .lab-content { background: #111113; border: 1px solid rgba(255,255,255,0.05); border-radius: 35px; padding: 40px; width: 100%; max-width: 680px; max-height: 90vh; overflow-y: auto; scrollbar-width: none; }
         @media (max-width: 600px) { .lab-content { padding: 25px; border-radius: 20px; } }
         
         .lab-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin: 30px 0; }
         @media (max-width: 600px) { .lab-grid { grid-template-columns: 1fr; gap: 15px; } }
 
-        .lab-input { background: #050507; border: 1px solid ${EMO_COLOR}35; color: #fff; padding: 16px; border-radius: 14px; width: 100%; box-sizing: border-box; font-family: inherit; font-size: 1.05rem; outline: none; transition: border-color 0.2s; }
-        .lab-select { background: #050507; border: 1px solid ${EMO_COLOR}35; color: #fff; padding: 14px; border-radius: 14px; width: 100%; cursor: pointer; outline: none; }
-        .lab-btn { background: ${EMO_COLOR}; color: #000; font-weight: 900; border: none; padding: 16px 35px; border-radius: 18px; cursor: pointer; transition: transform 0.2s, opacity 0.2s; letter-spacing: 1.5px; }
+        .lab-input { background: #050507; border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 16px; border-radius: 14px; width: 100%; box-sizing: border-box; font-family: inherit; font-size: 1.05rem; outline: none; transition: border-color 0.2s; }
+        .lab-select { background: #050507; border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 14px; border-radius: 14px; width: 100%; cursor: pointer; outline: none; }
+        .lab-btn { background: #fff; color: #000; font-weight: 900; border: none; padding: 16px 35px; border-radius: 18px; cursor: pointer; transition: transform 0.2s, opacity 0.2s; letter-spacing: 1.5px; }
         @media (max-width: 480px) { .lab-btn { width: 100%; margin-bottom: 10px; } }
       `}</style>
     </div>
   );
 };
 
-const MoodLab = React.memo(({ onClose, onSave, existing }: any) => {
+const MoodLab = React.memo(({ onClose, onSave, existing, color }: any) => {
   const [name, setName] = useState('');
   const [eye, setEye] = useState<Expression>('neutral');
   const [mouth, setMouth] = useState<Expression>('neutral');
@@ -826,33 +862,33 @@ const MoodLab = React.memo(({ onClose, onSave, existing }: any) => {
 
   return (
     <div className="lab-modal" onClick={onClose}>
-      <div className="lab-content" onClick={e => e.stopPropagation()}>
-        <h2 style={{ color: EMO_COLOR, marginTop: 0, letterSpacing: '5px', fontWeight: 900, fontSize: '2rem' }}>MOOD LAB</h2>
+      <div className="lab-content" style={{ borderColor: `${color}40` }} onClick={e => e.stopPropagation()}>
+        <h2 style={{ color, marginTop: 0, letterSpacing: '5px', fontWeight: 900, fontSize: '2rem' }}>MOOD LAB</h2>
         <p style={{ opacity: 0.6, fontSize: '1rem', fontWeight: 300, marginBottom: '30px' }}>Refine EMO's expressive matrix.</p>
         
         <div style={{ margin: '50px 0', display: 'flex', justifyContent: 'center' }}>
-          <EmoFace status="idle" lookOffset={{ x: 0, y: 0 }} intensity={0} expression="preview" isStartled={false} customMap={{ preview: { name: 'preview', eyeBase: eye, mouthBase: mouth } }} breathScale={1} boredom={0} />
+          <EmoFace status="idle" lookOffset={{ x: 0, y: 0 }} intensity={0} expression="preview" isStartled={false} customMap={{ preview: { name: 'preview', eyeBase: eye, mouthBase: mouth } }} breathScale={1} boredom={0} color={color} />
         </div>
 
         <div style={{ marginBottom: '30px' }}>
-          <label style={{ display: 'block', marginBottom: '12px', fontSize: '0.8rem', color: EMO_COLOR, letterSpacing: '3px', fontWeight: 'bold' }}>EXPRESSION SLAM</label>
-          <input className="lab-input" value={name} onChange={e => setName(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ''))} placeholder="NAME YOUR MOOD" />
+          <label style={{ display: 'block', marginBottom: '12px', fontSize: '0.8rem', color, letterSpacing: '3px', fontWeight: 'bold' }}>EXPRESSION SLAM</label>
+          <input className="lab-input" style={{ borderColor: `${color}40` }} value={name} onChange={e => setName(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ''))} placeholder="NAME YOUR MOOD" />
         </div>
 
         <div className="lab-grid">
           <div>
-            <label style={{ display: 'block', marginBottom: '12px', fontSize: '0.8rem', color: EMO_COLOR, letterSpacing: '3px', fontWeight: 'bold' }}>OPTIC STYLE</label>
-            <select className="lab-select" value={eye} onChange={e => setEye(e.target.value as Expression)}>{bases.map(b => <option key={b} value={b}>{b.toUpperCase()}</option>)}</select>
+            <label style={{ display: 'block', marginBottom: '12px', fontSize: '0.8rem', color, letterSpacing: '3px', fontWeight: 'bold' }}>OPTIC STYLE</label>
+            <select className="lab-select" style={{ borderColor: `${color}40` }} value={eye} onChange={e => setEye(e.target.value as Expression)}>{bases.map(b => <option key={b} value={b}>{b.toUpperCase()}</option>)}</select>
           </div>
           <div>
-            <label style={{ display: 'block', marginBottom: '12px', fontSize: '0.8rem', color: EMO_COLOR, letterSpacing: '3px', fontWeight: 'bold' }}>VOCAL STYLE</label>
-            <select className="lab-select" value={mouth} onChange={e => setMouth(e.target.value as Expression)}>{bases.map(b => <option key={b} value={b}>{b.toUpperCase()}</option>)}</select>
+            <label style={{ display: 'block', marginBottom: '12px', fontSize: '0.8rem', color, letterSpacing: '3px', fontWeight: 'bold' }}>VOCAL STYLE</label>
+            <select className="lab-select" style={{ borderColor: `${color}40` }} value={mouth} onChange={e => setMouth(e.target.value as Expression)}>{bases.map(b => <option key={b} value={b}>{b.toUpperCase()}</option>)}</select>
           </div>
         </div>
 
         <div style={{ marginTop: '60px', display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          <button className="lab-btn" style={{ background: 'transparent', color: EMO_COLOR, border: `1px solid ${EMO_COLOR}40`, marginRight: '15px' }} onClick={onClose}>DISCARD</button>
-          <button className="lab-btn" onClick={() => { if (!name) return alert("Identify your mood!"); onSave({ name, eyeBase: eye, mouthBase: mouth }); onClose(); }}>STORE MOOD</button>
+          <button className="lab-btn" style={{ background: 'transparent', color, border: `1px solid ${color}40`, marginRight: '15px' }} onClick={onClose}>DISCARD</button>
+          <button className="lab-btn" style={{ background: color }} onClick={() => { if (!name) return alert("Identify your mood!"); onSave({ name, eyeBase: eye, mouthBase: mouth }); onClose(); }}>STORE MOOD</button>
         </div>
       </div>
     </div>
