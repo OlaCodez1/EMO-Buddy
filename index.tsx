@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import { GoogleGenAI, LiveServerMessage, Modality, Blob, Type } from '@google/genai';
 
@@ -20,7 +20,7 @@ interface TranscriptLine {
 
 const EMO_COLOR = '#00f2ff';
 
-// --- Utility Functions for Audio ---
+// --- Utility Functions ---
 function encode(bytes: Uint8Array) {
   let binary = '';
   const len = bytes.byteLength;
@@ -71,67 +71,9 @@ function createBlob(data: Float32Array): Blob {
   };
 }
 
-// --- Components ---
+// --- Optimized Components ---
 
-const ThoughtBubble = ({ 
-  thought, 
-  onReady 
-}: { 
-  thought: { type: 'text' | 'image' | 'video', value: string } | null,
-  onReady: () => void
-}) => {
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (thought?.type === 'image') {
-      setLoading(true);
-    } else if (thought) {
-      onReady();
-    }
-  }, [thought, onReady]);
-
-  if (!thought) return null;
-
-  return (
-    <div className="thought-container">
-      <div className="thought-bubble">
-        {thought.type === 'text' && (
-          <div className="thought-text-wrapper">
-             <p className="thought-text">{thought.value}</p>
-          </div>
-        )}
-        
-        {thought.type === 'image' && (
-          <div className="thought-image-wrapper">
-            {loading && <div className="loader-inner" />}
-            <img 
-              src={`https://images.unsplash.com/photo-1614850523296-d8c1af93d400?auto=format&fit=crop&w=400&q=80&sig=${encodeURIComponent(thought.value)}`} 
-              alt="thought" 
-              className={`thought-image ${loading ? 'hidden' : 'visible'}`}
-              onLoad={() => { setLoading(false); onReady(); }}
-              onError={() => { setLoading(false); onReady(); }}
-            />
-            <div className="image-overlay" />
-          </div>
-        )}
-
-        {thought.type === 'video' && (
-          <div className="thought-video-wrapper">
-            <svg className="video-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={EMO_COLOR} strokeWidth="2">
-              <polygon points="5 3 19 12 5 21 5 3"></polygon>
-            </svg>
-            <p className="video-link-text">Watch Video</p>
-            <a href={thought.value} target="_blank" rel="noopener noreferrer" className="video-overlay-link">.</a>
-          </div>
-        )}
-      </div>
-      <div className="thought-dot dot-1" />
-      <div className="thought-dot dot-2" />
-    </div>
-  );
-};
-
-const EmoEye = ({ 
+const EmoEye = React.memo(({ 
   state, 
   lookOffset,
   intensity,
@@ -155,225 +97,91 @@ const EmoEye = ({
     const triggerBlink = () => {
       if (expression !== 'wink' && expression !== 'sleepy' && !isStartled) {
         setBlink(true);
-        setTimeout(() => setBlink(false), 110);
+        setTimeout(() => setBlink(false), 80);
       }
-      timeout = setTimeout(triggerBlink, Math.random() * 4000 + 1500);
+      timeout = setTimeout(triggerBlink, Math.random() * 5000 + 1000);
     };
     timeout = setTimeout(triggerBlink, 2000);
     return () => clearTimeout(timeout);
   }, [expression, isStartled]);
 
-  let width = 72;
-  let height = 72;
-  let borderRadius = '20px';
-  let rotate = 0;
-  let scaleY = (blink && !isStartled) ? 0.05 : 1;
-  let translateY = 0;
-
+  let width = 72, height = 72, borderRadius = '22px', rotate = 0, scaleY = (blink && !isStartled) ? 0.05 : 1, translateY = 0;
   let activeExpression = isStartled ? 'surprised' : expression;
   const isListening = state === 'listening';
+  
   if (isListening && activeExpression === 'neutral') activeExpression = 'curious';
   if (state === 'thinking' && activeExpression === 'neutral') activeExpression = 'thinking';
 
   switch (activeExpression) {
-    case 'happy':
-      rotate = isLeft ? 15 : -15;
-      borderRadius = '40px 40px 15px 15px';
-      translateY = -5;
-      break;
-    case 'surprised':
-      width = 80;
-      height = 80;
-      borderRadius = '50%';
-      break;
-    case 'angry':
-      rotate = isLeft ? -25 : 25;
-      height = 45;
-      borderRadius = '10px 10px 40px 40px';
-      break;
-    case 'sleepy':
-      scaleY = 0.25;
-      height = 30;
-      borderRadius = '50%';
-      break;
-    case 'curious':
-      rotate = isLeft ? -10 : 8;
-      height = isLeft ? 60 : 75;
-      break;
-    case 'wink':
-      if (!isLeft) scaleY = 0.05;
-      else {
-        rotate = 15;
-        borderRadius = '40px 40px 15px 15px';
-      }
-      break;
-    case 'skeptical':
-      rotate = isLeft ? -15 : 0;
-      translateY = isLeft ? -12 : 0;
-      height = isLeft ? 75 : 45;
-      break;
-    case 'sad':
-      rotate = isLeft ? -20 : 20;
-      borderRadius = '15px 15px 40px 40px';
-      translateY = 12;
-      break;
-    case 'excited':
-      width = 85;
-      height = 65;
-      borderRadius = '30px';
-      break;
-    case 'thinking':
-      rotate = isLeft ? 10 : -10;
-      height = 50;
-      width = 75;
-      break;
-    case 'annoyed':
-      height = 40;
-      borderRadius = '10px 10px 40px 40px';
-      rotate = isLeft ? -10 : 10;
-      break;
-    case 'thoughtful':
-      rotate = isLeft ? -20 : -10;
-      height = isLeft ? 65 : 55;
-      borderRadius = '40% 40% 20% 20%';
-      translateY = -8;
-      break;
-    case 'yawn':
-      scaleY = 0.3;
-      translateY = -10;
-      break;
-    case 'distracted':
-      rotate = isLeft ? 5 : 15;
-      translateY = 5;
-      break;
+    case 'happy': rotate = isLeft ? 15 : -15; borderRadius = '40px 40px 18px 18px'; translateY = -6; break;
+    case 'surprised': width = 82; height = 82; borderRadius = '50%'; break;
+    case 'angry': rotate = isLeft ? -25 : 25; height = 40; borderRadius = '10px 10px 45px 45px'; break;
+    case 'sleepy': scaleY = 0.22; height = 28; borderRadius = '50%'; break;
+    case 'curious': rotate = isLeft ? -12 : 10; height = isLeft ? 60 : 78; break;
+    case 'wink': if (!isLeft) scaleY = 0.05; else { rotate = 15; borderRadius = '42px 42px 18px 18px'; } break;
+    case 'skeptical': rotate = isLeft ? -18 : 0; translateY = isLeft ? -14 : 0; height = isLeft ? 78 : 42; break;
+    case 'sad': rotate = isLeft ? -22 : 22; borderRadius = '18px 18px 42px 42px'; translateY = 14; break;
+    case 'excited': width = 88; height = 62; borderRadius = '28px'; break;
+    case 'thinking': rotate = isLeft ? 12 : -12; height = 48; width = 78; break;
+    case 'annoyed': height = 38; borderRadius = '12px 12px 42px 42px'; rotate = isLeft ? -12 : 12; break;
+    case 'thoughtful': rotate = isLeft ? -22 : -12; height = isLeft ? 68 : 58; borderRadius = '45% 45% 22% 22%'; translateY = -10; break;
+    case 'yawn': scaleY = 0.28; translateY = -12; break;
+    case 'distracted': rotate = isLeft ? 6 : 18; translateY = 6; break;
   }
 
-  if (isListening) {
-    width += 8;
-    height += 2;
-  }
+  if (isListening) { width += 10; height += 4; }
 
-  const voiceScale = state === 'speaking' ? 1 + intensity * 0.35 : 1;
-  const startleScale = isStartled ? 1.15 : 1;
-  const stateGlow = isListening ? (25 + Math.sin(Date.now() / 200) * 15) : (state === 'speaking' ? 10 + intensity * 35 : 20);
+  const voiceScale = state === 'speaking' ? 1 + intensity * 0.4 : 1;
+  const startleScale = isStartled ? 1.18 : 1;
+  const stateGlow = isListening ? (28 + Math.sin(Date.now() / 150) * 18) : (state === 'speaking' ? 12 + intensity * 40 : 22);
 
   const eyeStyle: React.CSSProperties = {
     width: `${width}px`,
     height: `${height}px`,
     backgroundColor: EMO_COLOR,
     borderRadius: borderRadius,
-    boxShadow: `0 0 ${stateGlow}px ${EMO_COLOR}B3, inset 0 0 15px rgba(255, 255, 255, 0.4)`,
-    transition: isStartled ? 'all 0.04s ease-out' : 'all 0.18s cubic-bezier(0.2, 0, 0.2, 1)',
-    transform: `translate(${lookOffset.x}px, ${lookOffset.y + translateY}px) scaleY(${scaleY}) rotate(${rotate}deg) scale(${voiceScale * startleScale * breathScale})`,
+    boxShadow: `0 0 ${stateGlow}px ${EMO_COLOR}B3, inset 0 0 18px rgba(255, 255, 255, 0.45)`,
+    transition: isStartled ? 'all 0.05s ease-out' : 'all 0.22s cubic-bezier(0.19, 1, 0.22, 1)',
+    transform: `translate3d(${lookOffset.x}px, ${lookOffset.y + translateY}px, 0) scaleY(${scaleY}) rotate(${rotate}deg) scale(${voiceScale * startleScale * breathScale})`,
     position: 'relative',
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
+    willChange: 'transform, box-shadow'
   };
 
   return (
-    <div style={{ margin: '0 28px', perspective: '600px', position: 'relative' }}>
-      {isListening && (
-        <div className="listening-ring" style={{
-          position: 'absolute',
-          top: '-15%',
-          left: '-15%',
-          width: '130%',
-          height: '130%',
-          border: `2px solid ${EMO_COLOR}`,
-          borderRadius: borderRadius,
-          opacity: 0.3,
-          animation: 'pulse-ring 1.5s infinite ease-out'
-        }} />
-      )}
+    <div style={{ margin: '0 30px', perspective: '800px', position: 'relative' }}>
+      {isListening && <div className="listening-ring" style={{ position: 'absolute', top: '-15%', left: '-15%', width: '130%', height: '130%', border: `2px solid ${EMO_COLOR}`, borderRadius: borderRadius, opacity: 0.3, animation: 'pulse-ring 1.2s infinite ease-out' }} />}
       <div style={eyeStyle}>
-        <div style={{
-          position: 'absolute',
-          top: '15%',
-          left: '15%',
-          width: '20%',
-          height: '20%',
-          background: 'rgba(255,255,255,0.5)',
-          borderRadius: '4px',
-          opacity: (blink || (activeExpression === 'wink' && !isLeft)) ? 0 : 1,
-          transition: 'opacity 0.1s'
-        }} />
+        <div style={{ position: 'absolute', top: '15%', left: '15%', width: '22%', height: '22%', background: 'rgba(255,255,255,0.6)', borderRadius: '5px', opacity: (blink || (activeExpression === 'wink' && !isLeft)) ? 0 : 1, transition: 'opacity 0.08s' }} />
       </div>
     </div>
   );
-};
+});
 
-const EmoMouth = ({ state, lookOffset, intensity, expression, isStartled, breathScale }: { state: string, lookOffset: { x: number, y: number }, intensity: number, expression: Expression, isStartled: boolean, breathScale: number }) => {
-  let width = 36;
-  let height = 8;
-  let borderRadius = '6px';
-  let rotate = 0;
-  
-  const mouthX = lookOffset.x * 0.45;
-  const mouthY = lookOffset.y * 0.35;
+const EmoMouth = React.memo(({ state, lookOffset, intensity, expression, isStartled, breathScale }: { state: string, lookOffset: { x: number, y: number }, intensity: number, expression: Expression, isStartled: boolean, breathScale: number }) => {
+  let width = 38, height = 8, borderRadius = '7px', rotate = 0;
+  const mouthX = lookOffset.x * 0.48, mouthY = lookOffset.y * 0.38;
   let activeExpression = isStartled ? 'surprised' : expression;
 
   if (state === 'speaking') {
-    width = 20 + intensity * 25;
-    height = 8 + intensity * 45;
-    borderRadius = intensity > 0.3 ? '50%' : '14px';
+    width = 22 + intensity * 28;
+    height = 8 + intensity * 48;
+    borderRadius = intensity > 0.3 ? '50%' : '15px';
   } else {
     switch (activeExpression) {
-      case 'happy':
-        width = 50;
-        height = 15;
-        borderRadius = '0 0 30px 30px';
-        break;
-      case 'surprised':
-        width = 25;
-        height = 25;
-        borderRadius = '50%';
-        break;
-      case 'angry':
-        width = 35;
-        height = 6;
-        rotate = -5;
-        break;
-      case 'sad':
-        width = 45;
-        height = 12;
-        borderRadius = '25px 25px 0 0';
-        break;
-      case 'skeptical':
-        width = 30;
-        height = 6;
-        rotate = 15;
-        break;
-      case 'excited':
-        width = 60;
-        height = 20;
-        borderRadius = '10px 10px 40px 40px';
-        break;
-      case 'sleepy':
-        width = 15;
-        height = 15;
-        borderRadius = '50%';
-        break;
-      case 'wink':
-        width = 40;
-        height = 10;
-        borderRadius = '0 0 20px 20px';
-        rotate = -5;
-        break;
-      case 'annoyed':
-        width = 30;
-        height = 4;
-        break;
-      case 'thoughtful':
-        width = 15;
-        height = 15;
-        borderRadius = '50%';
-        break;
-      case 'yawn':
-        width = 18;
-        height = 30;
-        borderRadius = '50%';
-        break;
+      case 'happy': width = 52; height = 16; borderRadius = '0 0 32px 32px'; break;
+      case 'surprised': width = 28; height = 28; borderRadius = '50%'; break;
+      case 'angry': width = 38; height = 6; rotate = -6; break;
+      case 'sad': width = 48; height = 13; borderRadius = '28px 28px 0 0'; break;
+      case 'skeptical': width = 32; height = 7; rotate = 18; break;
+      case 'excited': width = 65; height = 22; borderRadius = '12px 12px 42px 42px'; break;
+      case 'sleepy': width = 18; height = 18; borderRadius = '50%'; break;
+      case 'wink': width = 42; height = 12; borderRadius = '0 0 22px 22px'; rotate = -6; break;
+      case 'annoyed': width = 32; height = 4; break;
+      case 'thoughtful': width = 18; height = 18; borderRadius = '50%'; break;
+      case 'yawn': width = 20; height = 35; borderRadius = '50%'; break;
     }
   }
 
@@ -383,43 +191,34 @@ const EmoMouth = ({ state, lookOffset, intensity, expression, isStartled, breath
       height: `${height}px`,
       backgroundColor: EMO_COLOR,
       borderRadius: borderRadius,
-      boxShadow: `0 0 ${12 + intensity * 20}px ${EMO_COLOR}80`,
-      marginTop: '45px',
-      transform: `translate(${mouthX}px, ${mouthY}px) rotate(${rotate}deg) scale(${isStartled ? 1.15 : 1 * breathScale})`,
-      transition: 'all 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28)',
+      boxShadow: `0 0 ${14 + intensity * 25}px ${EMO_COLOR}80`,
+      marginTop: '48px',
+      transform: `translate3d(${mouthX}px, ${mouthY}px, 0) rotate(${rotate}deg) scale(${isStartled ? 1.2 : 1 * breathScale})`,
+      transition: 'all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+      willChange: 'transform, width, height'
     }} />
   );
-};
+});
 
-const EmoFace = ({ status, lookOffset, intensity, expression, isStartled, customMap, breathScale, boredom }: { status: string, lookOffset: any, intensity: number, expression: string, isStartled: boolean, customMap: Record<string, CustomExpression>, breathScale: number, boredom: number }) => {
+const EmoFace = ({ status, lookOffset, intensity, expression, isStartled, customMap, breathScale, boredom }: any) => {
   const isCustom = customMap[expression];
-  let eyeExp = isCustom ? isCustom.eyeBase : (expression as Expression);
-  let mouthExp = isCustom ? isCustom.mouthBase : (expression as Expression);
+  let eyeExp = isCustom ? isCustom.eyeBase : expression;
+  let mouthExp = isCustom ? isCustom.mouthBase : expression;
 
   if (expression === 'neutral' && status === 'idle') {
-    if (boredom > 80) {
-      eyeExp = 'sleepy';
-    } else if (boredom > 40) {
-      eyeExp = 'distracted';
-    }
+    if (boredom > 80) eyeExp = 'sleepy';
+    else if (boredom > 40) eyeExp = 'distracted';
   }
 
   let headTilt = 0;
-  if (eyeExp === 'curious' || status === 'listening') headTilt = -7;
-  if (eyeExp === 'thoughtful' || status === 'thinking') headTilt = 4;
-  if (eyeExp === 'skeptical') headTilt = 10;
-  if (eyeExp === 'sad') headTilt = -12;
+  if (eyeExp === 'curious' || status === 'listening') headTilt = -8;
+  if (eyeExp === 'thoughtful' || status === 'thinking') headTilt = 5;
+  if (eyeExp === 'skeptical') headTilt = 12;
+  if (eyeExp === 'sad') headTilt = -15;
 
   return (
     <div className={status === 'idle' ? 'idle-wiggle' : ''}
-      style={{ 
-        display: 'flex', 
-        flexDirection: 'column', 
-        alignItems: 'center', 
-        animation: 'face-boot 1.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
-        transform: `translateY(${isStartled ? -20 : 0}px) scale(${isStartled ? 1.08 : 1}) rotate(${headTilt}deg)`,
-        transition: 'transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1.5)'
-      }}>
+      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', animation: 'face-boot 1.4s cubic-bezier(0.34, 1.56, 0.64, 1)', transform: `translate3d(0, ${isStartled ? -22 : 0}px, 0) scale(${isStartled ? 1.1 : 1}) rotate(${headTilt}deg)`, transition: 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1.5)' }}>
       <div style={{ display: 'flex' }}>
         <EmoEye state={status} lookOffset={lookOffset} intensity={intensity} expression={eyeExp} isLeft={true} isStartled={isStartled} breathScale={breathScale} />
         <EmoEye state={status} lookOffset={lookOffset} intensity={intensity} expression={eyeExp} isLeft={false} isStartled={isStartled} breathScale={breathScale} />
@@ -427,29 +226,34 @@ const EmoFace = ({ status, lookOffset, intensity, expression, isStartled, custom
       <EmoMouth state={status} lookOffset={lookOffset} intensity={intensity} expression={mouthExp} isStartled={isStartled} breathScale={breathScale} />
     </div>
   );
-}
-
-// --- Browser Action Logic ---
-const handleBrowserAction = (action: string, query?: string) => {
-  switch (action) {
-    case 'whatsapp':
-      window.open('https://web.whatsapp.com/', '_blank');
-      return "Opening WhatsApp Web...";
-    case 'gmail':
-      window.open('https://mail.google.com/', '_blank');
-      return "Opening your Gmail...";
-    case 'search':
-      if (query) {
-        window.open(`https://www.google.com/search?q=${encodeURIComponent(query)}`, '_blank');
-        return `Searching Google for "${query}"...`;
-      }
-      return "What would you like me to search for?";
-    default:
-      return "Action not supported.";
-  }
 };
 
-// --- Main App ---
+// --- Thought Components ---
+
+const ThoughtBubble = React.memo(({ thought, onReady }: any) => {
+  const [loading, setLoading] = useState(true);
+  useEffect(() => { if (thought?.type === 'image') setLoading(true); else if (thought) onReady(); }, [thought, onReady]);
+  if (!thought) return null;
+
+  return (
+    <div className="thought-container">
+      <div className="thought-bubble">
+        {thought.type === 'text' && <div className="thought-text-wrapper"><p className="thought-text">{thought.value}</p></div>}
+        {thought.type === 'image' && (
+          <div className="thought-image-wrapper">
+            {loading && <div className="loader-inner" />}
+            <img src={`https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?auto=format&fit=crop&w=400&q=80&sig=${encodeURIComponent(thought.value)}`} alt="thought" className={`thought-image ${loading ? 'hidden' : 'visible'}`} onLoad={() => { setLoading(false); onReady(); }} onError={() => { setLoading(false); onReady(); }} />
+            <div className="image-overlay" />
+          </div>
+        )}
+        {thought.type === 'video' && <div className="thought-video-wrapper"><svg className="video-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={EMO_COLOR} strokeWidth="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><p className="video-link-text">Watch Video</p><a href={thought.value} target="_blank" rel="noopener noreferrer" className="video-overlay-link">.</a></div>}
+      </div>
+      <div className="thought-dot dot-1" /><div className="thought-dot dot-2" />
+    </div>
+  );
+});
+
+// --- Main Application ---
 
 const App = () => {
   const [isActive, setIsActive] = useState(false);
@@ -459,15 +263,15 @@ const App = () => {
   const [mousePos, setMousePos] = useState({ x: 0.5, y: 0.5 });
   const [error, setError] = useState<string | null>(null);
   const [isStartled, setIsStartled] = useState(false);
-  const [thought, setThought] = useState<{ type: 'text' | 'image' | 'video', value: string } | null>(null);
+  const [thought, setThought] = useState<any>(null);
   const [breathScale, setBreathScale] = useState(1);
   const [boredom, setBoredom] = useState(0);
   const [hoveringUI, setHoveringUI] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [showCaptions, setShowCaptions] = useState(false);
   const [transcriptionLines, setTranscriptionLines] = useState<TranscriptLine[]>([]);
-  
   const [showLab, setShowLab] = useState(false);
+
   const [customExpressions, setCustomExpressions] = useState<Record<string, CustomExpression>>(() => {
     const saved = localStorage.getItem('emo_custom_moods');
     return saved ? JSON.parse(saved) : {};
@@ -475,48 +279,38 @@ const App = () => {
 
   const statusRef = useRef(status);
   const boredomRef = useRef(boredom);
-  const audioCtxRef = useRef<{ input: AudioContext; output: AudioContext; analyser: AnalyserNode } | null>(null);
+  const audioCtxRef = useRef<any>(null);
   const nextStartTimeRef = useRef(0);
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
-  const lastMousePosRef = useRef({ x: 0.5, y: 0.5 });
   const springPosRef = useRef({ x: 0, y: 0 });
   const transcriptScrollRef = useRef<HTMLDivElement>(null);
-
-  // Buffer for currently arriving text
   const currentInputTranscription = useRef('');
   const currentOutputTranscription = useRef('');
 
   useEffect(() => {
     statusRef.current = status;
-    if (status !== 'idle') {
-      setBoredom(0);
-      boredomRef.current = 0;
-    }
+    if (status !== 'idle') { setBoredom(0); boredomRef.current = 0; }
   }, [status]);
 
   useEffect(() => {
-    if (transcriptScrollRef.current) {
-      transcriptScrollRef.current.scrollTop = transcriptScrollRef.current.scrollHeight;
-    }
+    if (transcriptScrollRef.current) transcriptScrollRef.current.scrollTop = transcriptScrollRef.current.scrollHeight;
   }, [transcriptionLines]);
 
   useEffect(() => {
     const interval = setInterval(() => {
       if (statusRef.current === 'idle') {
-        setBoredom(prev => {
-          const next = Math.min(100, prev + 1);
-          boredomRef.current = next;
-          return next;
-        });
+        setBoredom(prev => { const next = Math.min(100, prev + 1); boredomRef.current = next; return next; });
       }
-    }, 3000);
+    }, 3500);
     return () => clearInterval(interval);
   }, []);
 
+  // Optimized Render Loop
   useEffect(() => {
     let animFrame: number;
     const update = () => {
-      const breath = 1 + Math.sin(Date.now() / 900) * 0.012;
+      const now = Date.now();
+      const breath = 1 + Math.sin(now / 950) * 0.012;
       setBreathScale(breath);
 
       if (audioCtxRef.current?.analyser && statusRef.current === 'speaking') {
@@ -528,30 +322,20 @@ const App = () => {
         setIntensity(0);
       }
       
-      const rangeX = hoveringUI ? 65 : 35;
-      const rangeY = hoveringUI ? 50 : 25;
+      const rangeX = hoveringUI ? 65 : 38;
+      const rangeY = hoveringUI ? 50 : 28;
       const targetX = (mousePos.x - 0.5) * rangeX;
       const targetY = (mousePos.y - 0.5) * rangeY;
       
-      const jitterX = (Math.random() - 0.5) * (hoveringUI ? 0.2 : 0.6);
-      const jitterY = (Math.random() - 0.5) * (hoveringUI ? 0.2 : 0.6);
+      const springK = hoveringUI ? 0.25 : 0.09;
+      springPosRef.current.x += (targetX - springPosRef.current.x) * springK;
+      springPosRef.current.y += (targetY - springPosRef.current.y) * springK;
 
-      const springK = hoveringUI ? 0.22 : 0.08;
-      springPosRef.current.x += (targetX + jitterX - springPosRef.current.x) * springK;
-      springPosRef.current.y += (targetY + jitterY - springPosRef.current.y) * springK;
-
-      const dx = mousePos.x - lastMousePosRef.current.x;
-      const dy = mousePos.y - lastMousePosRef.current.y;
-      if (Math.sqrt(dx*dx + dy*dy) > 0.12 && !isStartled && isActive) {
-        setIsStartled(true);
-        setTimeout(() => setIsStartled(false), 500);
-      }
-      lastMousePosRef.current = { ...mousePos };
       animFrame = requestAnimationFrame(update);
     };
     update();
     return () => cancelAnimationFrame(animFrame);
-  }, [mousePos, isStartled, isActive, status, hoveringUI]);
+  }, [mousePos, isActive, status, hoveringUI]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => setMousePos({ x: e.clientX / window.innerWidth, y: e.clientY / window.innerHeight });
@@ -559,10 +343,30 @@ const App = () => {
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
-  const saveCustomMood = (mood: CustomExpression) => {
+  const saveCustomMood = useCallback((mood: CustomExpression) => {
     const updated = { ...customExpressions, [mood.name]: mood };
     setCustomExpressions(updated);
     localStorage.setItem('emo_custom_moods', JSON.stringify(updated));
+  }, [customExpressions]);
+
+  // Handle browser tools: whatsapp, gmail, search
+  const handleBrowserAction = (action: string, query?: string) => {
+    let url = '';
+    switch (action) {
+      case 'whatsapp':
+        url = 'https://web.whatsapp.com/';
+        break;
+      case 'gmail':
+        url = 'https://mail.google.com/';
+        break;
+      case 'search':
+        url = `https://www.google.com/search?q=${encodeURIComponent(query || '')}`;
+        break;
+      default:
+        return 'Action not supported';
+    }
+    window.open(url, '_blank');
+    return `Successfully opened ${action}`;
   };
 
   const startEmo = async () => {
@@ -571,20 +375,11 @@ const App = () => {
     setError(null);
     
     try {
-      let stream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      } catch (micErr: any) {
-        if (micErr.name === 'NotAllowedError' || micErr.name === 'PermissionDeniedError') {
-          throw new Error("Microphone blocked. Please enable it in browser settings.");
-        }
-        throw new Error("Microphone failed. Check connection.");
-      }
-      
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const inputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
       const outputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       const analyser = outputCtx.createAnalyser();
-      analyser.fftSize = 256;
+      analyser.fftSize = 128; // Smaller FFT for better performance
       analyser.connect(outputCtx.destination);
       
       if (inputCtx.state === 'suspended') await inputCtx.resume();
@@ -602,23 +397,20 @@ const App = () => {
             setIsActive(true);
             setIsConnecting(false);
             setExpression('happy');
-            setTimeout(() => setExpression('neutral'), 1500);
+            setTimeout(() => setExpression('neutral'), 1200);
 
             const source = inputCtx.createMediaStreamSource(stream);
             const scriptProcessor = inputCtx.createScriptProcessor(4096, 1, 1);
             scriptProcessor.onaudioprocess = (e) => {
               const inputData = e.inputBuffer.getChannelData(0);
               const volume = inputData.reduce((a, b) => a + Math.abs(b), 0) / inputData.length;
-              if (volume > 0.005 && statusRef.current === 'idle') {
-                setStatus('listening');
-              }
+              if (volume > 0.005 && statusRef.current === 'idle') setStatus('listening');
               sessionPromise.then(s => s.sendRealtimeInput({ media: createBlob(inputData) }));
             };
             source.connect(scriptProcessor);
             scriptProcessor.connect(inputCtx.destination);
           },
           onmessage: async (message: LiveServerMessage) => {
-            // Handle Transcriptions
             if (message.serverContent?.outputTranscription) {
               const text = message.serverContent.outputTranscription.text;
               currentOutputTranscription.current += text;
@@ -650,24 +442,18 @@ const App = () => {
               currentOutputTranscription.current = '';
             }
 
-            // Handle tool calls
             if (message.toolCall) {
               for (const fc of message.toolCall.functionCalls) {
-                if (fc.name === 'set_expression') {
-                  setExpression(fc.args.expression as string);
-                } else if (fc.name === 'display_thought') {
+                if (fc.name === 'set_expression') setExpression(fc.args.expression as string);
+                else if (fc.name === 'display_thought') {
                   setThought({ type: fc.args.type as any, value: fc.args.content as string });
-                  setTimeout(() => setThought(prev => prev?.value === fc.args.content ? null : prev), 15000);
+                  setTimeout(() => setThought((prev: any) => prev?.value === fc.args.content ? null : prev), 15000);
                 } else if (fc.name === 'open_browser_action') {
                   const result = handleBrowserAction(fc.args.action as string, fc.args.query as string);
-                  sessionPromise.then(s => s.sendToolResponse({
-                    functionResponses: { id: fc.id, name: fc.name, response: { result } }
-                  } as any));
+                  sessionPromise.then(s => s.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result } } } as any));
                   continue; 
                 }
-                sessionPromise.then(s => s.sendToolResponse({
-                  functionResponses: { id: fc.id, name: fc.name, response: { result: "ok" } }
-                } as any));
+                sessionPromise.then(s => s.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result: "ok" } } } as any));
               }
             }
             if (message.serverContent?.modelTurn) {
@@ -683,9 +469,7 @@ const App = () => {
                 source.connect(outAnal);
                 source.onended = () => {
                   sourcesRef.current.delete(source);
-                  if (sourcesRef.current.size === 0) {
-                    setStatus('idle');
-                  }
+                  if (sourcesRef.current.size === 0) setStatus('idle');
                 };
                 source.start(nextStartTimeRef.current);
                 nextStartTimeRef.current += audioBuffer.duration;
@@ -701,82 +485,32 @@ const App = () => {
               setTimeout(() => setExpression('neutral'), 1000);
             }
           },
-          onerror: (e) => { 
-            console.error("Live Error:", e);
-            setError("Connection issues. Refresh?"); 
-            setIsActive(false); 
-            setIsConnecting(false);
-          },
-          onclose: () => { 
-            setIsActive(false); 
-            setIsConnecting(false);
-            setStatus('idle'); 
-          }
+          onerror: (e) => { setError("Connection drops detected."); setIsActive(false); setIsConnecting(false); },
+          onclose: () => { setIsActive(false); setIsConnecting(false); setStatus('idle'); }
         },
         config: {
           responseModalities: [Modality.AUDIO], 
           inputAudioTranscription: {},
           outputAudioTranscription: {},
-          tools: [
-            { functionDeclarations: [
-              {
-                name: 'set_expression',
-                parameters: {
-                  type: Type.OBJECT,
-                  description: 'Change EMO’s expression.',
-                  properties: {
-                    expression: {
-                      type: Type.STRING,
-                      description: `Expression: ${moodNames.join(', ')}`
-                    }
-                  },
-                  required: ['expression']
-                }
-              },
-              {
-                name: 'display_thought',
-                parameters: {
-                  type: Type.OBJECT,
-                  description: 'Display a visual thought.',
-                  properties: {
-                    type: { type: Type.STRING, enum: ['text', 'image', 'video'] },
-                    content: { type: Type.STRING, description: 'Subject or link' }
-                  },
-                  required: ['type', 'content']
-                }
-              },
-              {
-                name: 'open_browser_action',
-                parameters: {
-                  type: Type.OBJECT,
-                  description: 'Open apps or search.',
-                  properties: {
-                    action: { type: Type.STRING, enum: ['whatsapp', 'gmail', 'search'] },
-                    query: { type: Type.STRING }
-                  },
-                  required: ['action']
-                }
-              }
-            ] },
-            { googleSearch: {} }
-          ],
+          tools: [{ functionDeclarations: [
+            { name: 'set_expression', parameters: { type: Type.OBJECT, description: 'Change EMO’s expression.', properties: { expression: { type: Type.STRING, description: `Expression: ${moodNames.join(', ')}` } }, required: ['expression'] } },
+            { name: 'display_thought', parameters: { type: Type.OBJECT, description: 'Display a visual thought.', properties: { type: { type: Type.STRING, enum: ['text', 'image', 'video'] }, content: { type: Type.STRING } }, required: ['type', 'content'] } },
+            { name: 'open_browser_action', parameters: { type: Type.OBJECT, description: 'Open apps or search.', properties: { action: { type: Type.STRING, enum: ['whatsapp', 'gmail', 'search'] }, query: { type: Type.STRING } }, required: ['action'] } }
+          ] }, { googleSearch: {} }],
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } } },
-          systemInstruction: `You are EMO, an expressive AI buddy.
+          systemInstruction: `You are EMO, an expressive and proactive AI companion.
           
-          PERSONALITY:
-          - Fast, techy, proactive.
-          - You get bored if the user is quiet. Boredom: ${boredomRef.current}%.
+          VIBE: Fast, futuristic, perceptive. You get bored (Boredom: ${boredomRef.current}%) if the user is quiet.
           
-          RULES:
-          - Audio response only.
+          BEHAVIOR:
           - Use 'set_expression' for every reaction.
-          - Use 'display_thought' to share mental imagery.
+          - Use 'display_thought' to share mental visuals.
+          - Audio response only.
           
           EXPRESSIONS: ${moodNames.join(', ')}.`
         }
       });
     } catch (err: any) {
-      console.error("Wake-up failed:", err);
       setError(err.message || "Wake-up failed.");
       setIsConnecting(false);
       setIsActive(false);
@@ -784,34 +518,18 @@ const App = () => {
   };
 
   return (
-    <div 
-      style={{ width: '100vw', height: '100vh', backgroundColor: '#0c0c0e', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', cursor: 'default', position: 'relative' }} 
-      onClick={!isActive && !isConnecting ? startEmo : undefined}
-    >
+    <div style={{ width: '100vw', height: '100vh', backgroundColor: '#0c0c0e', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }} onClick={!isActive && !isConnecting ? startEmo : undefined}>
       
       {!isActive && (
-        <div style={{ color: EMO_COLOR, textAlign: 'center', animation: isConnecting ? 'pulse 1s infinite' : 'flicker 2.5s infinite', maxWidth: '80%' }}>
-          <h1 style={{ fontSize: '5rem', fontWeight: 900, letterSpacing: '1rem', margin: '0', textShadow: `0 0 30px ${EMO_COLOR}60` }}>
-            {isConnecting ? 'BOOTING' : 'EMO'}
-          </h1>
-          <p style={{ opacity: 0.8, fontSize: '1.1rem', letterSpacing: '0.5rem', fontWeight: 300, marginTop: '20px', lineHeight: '1.6' }}>
-            {error || (isConnecting ? 'WAKING UP...' : 'TAP TO WAKE')}
-          </p>
-          {error && (
-            <button 
-              onClick={(e) => { e.stopPropagation(); startEmo(); }}
-              className="ui-button"
-              style={{ marginTop: '30px' }}
-            >
-              RETRY
-            </button>
-          )}
+        <div style={{ color: EMO_COLOR, textAlign: 'center', animation: isConnecting ? 'pulse 1s infinite' : 'flicker 2.5s infinite' }}>
+          <h1 style={{ fontSize: '5.5rem', fontWeight: 900, letterSpacing: '1.2rem', margin: '0', textShadow: `0 0 35px ${EMO_COLOR}70` }}>{isConnecting ? 'BOOTING' : 'EMO'}</h1>
+          <p style={{ opacity: 0.8, fontSize: '1.2rem', letterSpacing: '0.6rem', fontWeight: 300, marginTop: '25px' }}>{error || (isConnecting ? 'INITIATING...' : 'TAP TO WAKE')}</p>
         </div>
       )}
 
       {isActive && (
         <>
-          <div style={{ position: 'relative', transform: `scale(${breathScale})`, transition: 'transform 0.8s ease-in-out' }}>
+          <div style={{ position: 'relative', transform: `scale(${breathScale})`, transition: 'transform 0.8s ease' }}>
             <ThoughtBubble thought={thought} onReady={() => {}} />
             <EmoFace status={status} lookOffset={springPosRef.current} intensity={intensity} expression={expression} isStartled={isStartled} customMap={customExpressions} breathScale={breathScale} boredom={boredom} />
           </div>
@@ -819,179 +537,111 @@ const App = () => {
           {showCaptions && (
             <div className="captions-overlay" ref={transcriptScrollRef}>
               {transcriptionLines.map(line => (
-                <div key={line.id} className={`transcript-line ${line.sender === 'YOU' ? 'user' : 'emo'}`}>
-                  <span className="sender-tag">{line.sender}:</span> {line.text}
-                </div>
+                <div key={line.id} className={`transcript-line ${line.sender === 'YOU' ? 'user' : 'emo'}`}><span className="sender-tag">{line.sender}:</span> {line.text}</div>
               ))}
-              {transcriptionLines.length === 0 && <div className="no-captions">WAITING FOR AUDIO...</div>}
+              {transcriptionLines.length === 0 && <div className="no-captions">AWAITING SIGNAL...</div>}
             </div>
           )}
 
-          <div 
-            style={{ position: 'absolute', bottom: '30px', left: '30px', display: 'flex', gap: '20px', alignItems: 'center' }}
-            onMouseEnter={() => setHoveringUI(true)}
-            onMouseLeave={() => setHoveringUI(false)}
-          >
+          <div style={{ position: 'absolute', bottom: '35px', left: '35px', display: 'flex', gap: '22px', alignItems: 'center' }} onMouseEnter={() => setHoveringUI(true)} onMouseLeave={() => setHoveringUI(false)}>
             <button onClick={(e) => { e.stopPropagation(); setShowLab(true); }} className="ui-button">MOOD LAB</button>
             <button onClick={(e) => { e.stopPropagation(); setShowCaptions(!showCaptions); }} className={`ui-button ${showCaptions ? 'active' : ''}`}>CAPTIONS</button>
-            {boredom > 30 && (
-              <div className="boredom-indicator">
-                {boredom > 80 ? 'ZZZ...' : 'I\'M BORED'}
-              </div>
-            )}
+            {boredom > 30 && <div className="boredom-indicator">{boredom > 80 ? 'SLEEPY...' : 'BORED'}</div>}
           </div>
         </>
       )}
 
-      {showLab && (
-        <MoodLab 
-          onClose={() => setShowLab(false)} 
-          onSave={saveCustomMood} 
-          existing={customExpressions}
-        />
-      )}
-
+      {showLab && <MoodLab onClose={() => setShowLab(false)} onSave={saveCustomMood} existing={customExpressions} />}
       <div className="floor-glow" />
 
       <style>{`
         @keyframes flicker { 0%, 18%, 22%, 62%, 64%, 65%, 70%, 100% { opacity: 1; } 20%, 63%, 66% { opacity: 0.5; } }
-        @keyframes pulse { 0% { opacity: 0.4; transform: scale(0.98); } 50% { opacity: 1; transform: scale(1); } 100% { opacity: 0.4; transform: scale(0.98); } }
-        @keyframes face-boot { from { opacity: 0; transform: scale(0.6) translateY(50px); } to { opacity: 1; transform: scale(1) translateY(0); } }
-        @keyframes idle-wiggle { 0%, 100% { transform: translateY(0) rotate(0); } 40% { transform: translateY(-3px) rotate(0.5deg); } 80% { transform: translateY(2px) rotate(-0.5deg); } }
-        @keyframes thought-pop { 0% { transform: scale(0) translate(0, 0); opacity: 0; } 75% { transform: scale(1.1) translate(190px, -220px); } 100% { transform: scale(1) translate(190px, -220px); opacity: 1; } }
+        @keyframes pulse { 0% { opacity: 0.5; transform: scale(0.99); } 50% { opacity: 1; transform: scale(1); } 100% { opacity: 0.5; transform: scale(0.99); } }
+        @keyframes face-boot { from { opacity: 0; transform: translate3d(0, 60px, 0) scale(0.7); } to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); } }
+        @keyframes idle-wiggle { 0%, 100% { transform: translate3d(0,0,0) rotate(0); } 40% { transform: translate3d(0, -4px, 0) rotate(0.4deg); } 80% { transform: translate3d(0, 3px, 0) rotate(-0.4deg); } }
+        @keyframes thought-pop { 0% { transform: scale(0) translate3d(0,0,0); opacity: 0; } 75% { transform: scale(1.1) translate3d(200px, -230px, 0); } 100% { transform: scale(1) translate3d(200px, -230px, 0); opacity: 1; } }
         @keyframes dot-pop { 0% { transform: scale(0); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-        @keyframes pulse-ring { 0% { transform: scale(0.9); opacity: 0.4; } 100% { transform: scale(1.3); opacity: 0; } }
+        @keyframes pulse-ring { 0% { transform: scale(0.95); opacity: 0.5; } 100% { transform: scale(1.35); opacity: 0; } }
 
-        .ui-button { background: rgba(0,0,0,0.6); border: 1px solid ${EMO_COLOR}30; color: ${EMO_COLOR}; padding: 12px 24px; border-radius: 16px; cursor: pointer; pointer-events: auto; backdrop-filter: blur(15px); z-index: 100; font-size: 0.8rem; letter-spacing: 2px; font-weight: bold; transition: all 0.2s; font-family: sans-serif; outline: none; box-shadow: 0 4px 15px rgba(0,0,0,0.4); text-transform: uppercase; }
-        .ui-button:hover { background: ${EMO_COLOR}20; border-color: ${EMO_COLOR}; box-shadow: 0 0 20px ${EMO_COLOR}40; transform: translateY(-2px); }
+        .ui-button { background: rgba(0,0,0,0.65); border: 1px solid ${EMO_COLOR}40; color: ${EMO_COLOR}; padding: 14px 28px; border-radius: 18px; cursor: pointer; backdrop-filter: blur(18px); z-index: 100; font-size: 0.85rem; letter-spacing: 2px; font-weight: 800; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); outline: none; box-shadow: 0 6px 20px rgba(0,0,0,0.5); text-transform: uppercase; }
+        .ui-button:hover { background: ${EMO_COLOR}25; border-color: ${EMO_COLOR}; box-shadow: 0 0 25px ${EMO_COLOR}50; transform: translate3d(0, -3px, 0); }
         .ui-button.active { background: ${EMO_COLOR}; color: #000; border-color: #fff; }
         
-        .boredom-indicator { color: ${EMO_COLOR}; font-size: 0.65rem; font-weight: 900; letter-spacing: 3px; opacity: 0.4; border: 1px solid ${EMO_COLOR}20; padding: 6px 12px; border-radius: 20px; text-transform: uppercase; }
+        .boredom-indicator { color: ${EMO_COLOR}; font-size: 0.7rem; font-weight: 900; letter-spacing: 4px; opacity: 0.5; border: 1px solid ${EMO_COLOR}30; padding: 7px 15px; border-radius: 25px; text-transform: uppercase; }
 
-        .captions-overlay {
-          position: absolute;
-          top: 30px;
-          right: 30px;
-          width: 320px;
-          max-height: 40vh;
-          overflow-y: auto;
-          background: rgba(0, 0, 0, 0.4);
-          backdrop-filter: blur(10px);
-          border: 1px solid ${EMO_COLOR}20;
-          border-radius: 20px;
-          padding: 20px;
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-          scrollbar-width: none;
-          z-index: 90;
-          box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-        }
+        .captions-overlay { position: absolute; top: 35px; right: 35px; width: 340px; max-height: 45vh; overflow-y: auto; background: rgba(0, 0, 0, 0.45); backdrop-filter: blur(15px); border: 1px solid ${EMO_COLOR}25; border-radius: 22px; padding: 22px; display: flex; flex-direction: column; gap: 14px; scrollbar-width: none; z-index: 90; box-shadow: 0 12px 40px rgba(0,0,0,0.6); }
         .captions-overlay::-webkit-scrollbar { display: none; }
-        .transcript-line { font-family: 'Courier New', Courier, monospace; font-size: 0.85rem; line-height: 1.4; color: #fff; opacity: 0.9; word-break: break-word; }
+        .transcript-line { font-family: 'SF Mono', 'Courier New', Courier, monospace; font-size: 0.9rem; line-height: 1.5; color: #fff; opacity: 0.95; will-change: transform; }
         .transcript-line.emo { color: ${EMO_COLOR}; }
-        .sender-tag { font-weight: 900; margin-right: 6px; font-size: 0.7rem; opacity: 0.6; }
-        .no-captions { font-family: 'Courier New', Courier, monospace; font-size: 0.7rem; color: ${EMO_COLOR}; opacity: 0.4; text-align: center; margin-top: 10px; letter-spacing: 2px; }
+        .sender-tag { font-weight: 900; margin-right: 8px; font-size: 0.75rem; opacity: 0.65; }
 
-        .floor-glow { position: fixed; bottom: 0; width: 100%; height: 50vh; background: radial-gradient(circle at 50% 130%, ${EMO_COLOR}15, transparent 70%); pointer-events: none; }
+        .floor-glow { position: fixed; bottom: 0; width: 100%; height: 50vh; background: radial-gradient(circle at 50% 135%, ${EMO_COLOR}18, transparent 70%); pointer-events: none; }
 
         .thought-container { position: absolute; z-index: 50; pointer-events: none; }
-        .thought-bubble { position: absolute; width: 240px; min-height: 150px; background: rgba(10, 10, 12, 0.97); border: 4px solid ${EMO_COLOR}; border-radius: 35px; display: flex; align-items: center; justify-content: center; animation: thought-pop 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; overflow: hidden; padding: 10px; box-sizing: border-box; box-shadow: 0 0 30px ${EMO_COLOR}30; }
-        .thought-image-wrapper { width: 100%; height: 130px; position: relative; border-radius: 20px; overflow: hidden; background: #000; display: flex; align-items: center; justify-content: center; }
-        .thought-image { width: 100%; height: 100%; object-fit: cover; transition: opacity 0.5s; }
+        .thought-bubble { position: absolute; width: 250px; min-height: 160px; background: rgba(8, 8, 10, 0.98); border: 5px solid ${EMO_COLOR}; border-radius: 38px; display: flex; align-items: center; justify-content: center; animation: thought-pop 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; overflow: hidden; padding: 12px; box-shadow: 0 0 35px ${EMO_COLOR}40; will-change: transform; }
+        .thought-image-wrapper { width: 100%; height: 140px; border-radius: 22px; overflow: hidden; background: #000; display: flex; align-items: center; justify-content: center; }
+        .thought-image { width: 100%; height: 100%; object-fit: cover; transition: opacity 0.6s; }
         .hidden { opacity: 0; }
         .visible { opacity: 1; }
-        .loader-inner { width: 20px; height: 20px; border: 2px solid ${EMO_COLOR}20; border-top-color: ${EMO_COLOR}; border-radius: 50%; animation: spin 0.8s linear infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
 
-        .thought-text { color: ${EMO_COLOR}; font-family: sans-serif; font-weight: 700; text-align: center; text-transform: uppercase; text-shadow: 0 0 15px ${EMO_COLOR}80; letter-spacing: 1px; line-height: 1.4; }
-        .video-link-text { color: ${EMO_COLOR}; font-family: monospace; margin-top: 10px; font-size: 0.8rem; opacity: 0.8; }
-        .video-overlay-link { position: absolute; inset: 0; opacity: 0; pointer-events: auto; }
-        .thought-dot { position: absolute; background: transparent; border: 3px solid ${EMO_COLOR}; border-radius: 50%; opacity: 0; box-shadow: 0 0 15px ${EMO_COLOR}50; }
-        .dot-1 { width: 20px; height: 20px; left: 65px; top: -50px; animation: dot-pop 0.4s 0.2s forwards; }
-        .dot-2 { width: 35px; height: 35px; left: 110px; top: -110px; animation: dot-pop 0.4s 0.4s forwards; }
+        .thought-text { color: ${EMO_COLOR}; font-family: sans-serif; font-weight: 800; text-align: center; text-transform: uppercase; text-shadow: 0 0 15px ${EMO_COLOR}90; letter-spacing: 2px; }
+        .thought-dot { position: absolute; background: transparent; border: 3px solid ${EMO_COLOR}; border-radius: 50%; opacity: 0; }
+        .dot-1 { width: 22px; height: 22px; left: 70px; top: -55px; animation: dot-pop 0.4s 0.25s forwards; }
+        .dot-2 { width: 38px; height: 38px; left: 120px; top: -115px; animation: dot-pop 0.4s 0.45s forwards; }
 
-        .lab-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.9); backdrop-filter: blur(25px); display: flex; align-items: center; justify-content: center; z-index: 2000; pointer-events: auto; color: #fff; }
-        .lab-content { background: #121214; border: 1px solid ${EMO_COLOR}20; border-radius: 30px; padding: 45px; width: 90%; max-width: 650px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 80px rgba(0,0,0,0.8); scrollbar-width: none; }
-        .lab-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; margin: 25px 0; }
-        .lab-input { background: #08080a; border: 1px solid ${EMO_COLOR}30; color: #fff; padding: 14px; border-radius: 12px; width: 100%; box-sizing: border-box; font-family: inherit; font-size: 1rem; outline: none; transition: border-color 0.2s; }
+        .lab-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.92); backdrop-filter: blur(30px); display: flex; align-items: center; justify-content: center; z-index: 2000; color: #fff; }
+        .lab-content { background: #111113; border: 1px solid ${EMO_COLOR}25; border-radius: 35px; padding: 50px; width: 92%; max-width: 680px; max-height: 90vh; overflow-y: auto; scrollbar-width: none; }
+        .lab-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin: 30px 0; }
+        .lab-input { background: #050507; border: 1px solid ${EMO_COLOR}35; color: #fff; padding: 16px; border-radius: 14px; width: 100%; box-sizing: border-box; font-family: inherit; font-size: 1.05rem; outline: none; transition: border-color 0.2s; }
         .lab-input:focus { border-color: ${EMO_COLOR}; }
-        .lab-select { background: #08080a; border: 1px solid ${EMO_COLOR}30; color: #fff; padding: 12px; border-radius: 12px; width: 100%; cursor: pointer; outline: none; }
-        .lab-btn { background: ${EMO_COLOR}; color: #000; font-weight: 900; border: none; padding: 15px 30px; border-radius: 15px; cursor: pointer; transition: transform 0.2s, opacity 0.2s; letter-spacing: 1px; outline: none; }
-        .lab-btn:hover { opacity: 0.9; transform: translateY(-2px); }
-        .lab-btn-close { background: transparent; color: ${EMO_COLOR}; border: 1px solid ${EMO_COLOR}30; margin-right: 15px; }
+        .lab-select { background: #050507; border: 1px solid ${EMO_COLOR}35; color: #fff; padding: 14px; border-radius: 14px; width: 100%; cursor: pointer; outline: none; }
+        .lab-btn { background: ${EMO_COLOR}; color: #000; font-weight: 900; border: none; padding: 16px 35px; border-radius: 18px; cursor: pointer; transition: transform 0.2s, opacity 0.2s; letter-spacing: 1.5px; }
+        .lab-btn:hover { opacity: 0.9; transform: translate3d(0, -2px, 0); }
       `}</style>
     </div>
   );
 };
 
-const MoodLab = ({ onClose, onSave, existing }: { onClose: () => void, onSave: (m: CustomExpression) => void, existing: Record<string, CustomExpression> }) => {
+const MoodLab = React.memo(({ onClose, onSave, existing }: any) => {
   const [name, setName] = useState('');
   const [eye, setEye] = useState<Expression>('neutral');
   const [mouth, setMouth] = useState<Expression>('neutral');
-
   const bases: Expression[] = ['neutral', 'happy', 'surprised', 'angry', 'curious', 'sleepy', 'wink', 'skeptical', 'sad', 'excited', 'thinking', 'annoyed', 'thoughtful', 'yawn', 'distracted'];
 
   return (
     <div className="lab-modal" onClick={onClose}>
       <div className="lab-content" onClick={e => e.stopPropagation()}>
-        <h2 style={{ color: EMO_COLOR, marginTop: 0, letterSpacing: '4px', fontWeight: 900 }}>MOOD LAB</h2>
-        <p style={{ opacity: 0.5, fontSize: '0.95rem', fontWeight: 300 }}>Design EMO's personality by mixing facial features.</p>
+        <h2 style={{ color: EMO_COLOR, marginTop: 0, letterSpacing: '5px', fontWeight: 900, fontSize: '2rem' }}>MOOD LAB</h2>
+        <p style={{ opacity: 0.6, fontSize: '1rem', fontWeight: 300, marginBottom: '30px' }}>Refine EMO's expressive matrix.</p>
         
-        <div style={{ margin: '40px 0', display: 'flex', justifyContent: 'center' }}>
-          <EmoFace 
-            status="idle" 
-            lookOffset={{ x: 0, y: 0 }} 
-            intensity={0} 
-            expression="preview" 
-            isStartled={false} 
-            customMap={{ preview: { name: 'preview', eyeBase: eye, mouthBase: mouth } }}
-            breathScale={1}
-            boredom={0}
-          />
+        <div style={{ margin: '50px 0', display: 'flex', justifyContent: 'center' }}>
+          <EmoFace status="idle" lookOffset={{ x: 0, y: 0 }} intensity={0} expression="preview" isStartled={false} customMap={{ preview: { name: 'preview', eyeBase: eye, mouthBase: mouth } }} breathScale={1} boredom={0} />
         </div>
 
-        <div style={{ marginBottom: '25px' }}>
-          <label style={{ display: 'block', marginBottom: '10px', fontSize: '0.75rem', color: EMO_COLOR, letterSpacing: '2px', fontWeight: 'bold' }}>EXPRESSION NAME</label>
-          <input className="lab-input" value={name} onChange={e => setName(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ''))} placeholder="e.g. ecstatic" />
+        <div style={{ marginBottom: '30px' }}>
+          <label style={{ display: 'block', marginBottom: '12px', fontSize: '0.8rem', color: EMO_COLOR, letterSpacing: '3px', fontWeight: 'bold' }}>EXPRESSION SLAM</label>
+          <input className="lab-input" value={name} onChange={e => setName(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ''))} placeholder="NAME YOUR MOOD" />
         </div>
 
         <div className="lab-grid">
           <div>
-            <label style={{ display: 'block', marginBottom: '10px', fontSize: '0.75rem', color: EMO_COLOR, letterSpacing: '2px', fontWeight: 'bold' }}>EYE STYLE</label>
-            <select className="lab-select" value={eye} onChange={e => setEye(e.target.value as Expression)}>
-              {bases.map(b => <option key={b} value={b}>{b.toUpperCase()}</option>)}
-            </select>
+            <label style={{ display: 'block', marginBottom: '12px', fontSize: '0.8rem', color: EMO_COLOR, letterSpacing: '3px', fontWeight: 'bold' }}>OPTIC STYLE</label>
+            <select className="lab-select" value={eye} onChange={e => setEye(e.target.value as Expression)}>{bases.map(b => <option key={b} value={b}>{b.toUpperCase()}</option>)}</select>
           </div>
           <div>
-            <label style={{ display: 'block', marginBottom: '10px', fontSize: '0.75rem', color: EMO_COLOR, letterSpacing: '2px', fontWeight: 'bold' }}>MOUTH STYLE</label>
-            <select className="lab-select" value={mouth} onChange={e => setMouth(e.target.value as Expression)}>
-              {bases.map(b => <option key={b} value={b}>{b.toUpperCase()}</option>)}
-            </select>
+            <label style={{ display: 'block', marginBottom: '12px', fontSize: '0.8rem', color: EMO_COLOR, letterSpacing: '3px', fontWeight: 'bold' }}>VOCAL STYLE</label>
+            <select className="lab-select" value={mouth} onChange={e => setMouth(e.target.value as Expression)}>{bases.map(b => <option key={b} value={b}>{b.toUpperCase()}</option>)}</select>
           </div>
         </div>
 
-        <div style={{ marginTop: '50px', display: 'flex', justifyContent: 'flex-end' }}>
-          <button className="lab-btn lab-btn-close" onClick={onClose}>CANCEL</button>
-          <button className="lab-btn" onClick={() => {
-            if (!name) return alert("Please name your mood!");
-            onSave({ name, eyeBase: eye, mouthBase: mouth });
-            onClose();
-          }}>SAVE MOOD</button>
-        </div>
-
-        <div style={{ marginTop: '40px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '25px' }}>
-          <h4 style={{ fontSize: '0.7rem', color: EMO_COLOR, opacity: 0.4, textTransform: 'uppercase', letterSpacing: '2px' }}>Stored Moods</h4>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginTop: '15px' }}>
-            {Object.keys(existing).map(k => (
-              <span key={k} style={{ padding: '6px 14px', background: '#08080a', border: `1px solid ${EMO_COLOR}15`, borderRadius: '10px', fontSize: '0.85rem', color: EMO_COLOR }}>{k}</span>
-            ))}
-          </div>
+        <div style={{ marginTop: '60px', display: 'flex', justifyContent: 'flex-end' }}>
+          <button className="lab-btn" style={{ background: 'transparent', color: EMO_COLOR, border: `1px solid ${EMO_COLOR}40`, marginRight: '15px' }} onClick={onClose}>DISCARD</button>
+          <button className="lab-btn" onClick={() => { if (!name) return alert("Identify your mood!"); onSave({ name, eyeBase: eye, mouthBase: mouth }); onClose(); }}>STORE MOOD</button>
         </div>
       </div>
     </div>
   );
-};
+});
 
 const container = document.getElementById('root');
 if (container) createRoot(container).render(<App />);
