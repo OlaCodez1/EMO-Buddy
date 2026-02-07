@@ -22,6 +22,7 @@ interface ThoughtData {
   type: 'text' | 'image' | 'video' | 'generated' | 'music';
   value: string; 
   prompt?: string;
+  timestamp: number;
 }
 
 // --- Dynamic Color Mapping ---
@@ -29,22 +30,22 @@ const getMoodColor = (exp: string): string => {
   switch (exp) {
     case 'angry':
     case 'annoyed':
-      return '#ff3333'; // Red
+      return '#ff3333'; // Deep Red
     case 'happy':
     case 'excited':
-      return '#ffea00'; // Yellow/Gold
+      return '#ffea00'; // Neon Gold
     case 'sad':
-      return '#3366ff'; // Blue
+      return '#3366ff'; // Electric Blue
     case 'thinking':
     case 'thoughtful':
     case 'curious':
-      return '#bc13fe'; // Purple
+      return '#bc13fe'; // Cyber Purple
     case 'sleepy':
-      return '#a0a0a0'; // Grey
+      return '#a0a0a0'; // Stealth Grey
     case 'surprised':
-      return '#ff8c00'; // Orange
+      return '#ff8c00'; // Warning Orange
     default:
-      return '#00f2ff'; // Default Cyan
+      return '#00f2ff'; // Core Cyan
   }
 };
 
@@ -99,7 +100,7 @@ function createBlob(data: Float32Array): Blob {
   };
 }
 
-// --- Optimized Components ---
+// --- Face Components ---
 
 const EmoEye = React.memo(({ 
   state, 
@@ -265,9 +266,19 @@ const EmoFace = ({ status, lookOffset, intensity, expression, isStartled, custom
   );
 };
 
-// --- Thought Components ---
+// --- Neural Link (Thought Bubble) Components ---
 
-const ThoughtBubble = React.memo(({ thought, onReady, color }: { thought: ThoughtData | null, onReady: () => void, color: string }) => {
+const NeuralLink = React.memo(({ 
+  thought, 
+  onReady, 
+  onExpand,
+  color 
+}: { 
+  thought: ThoughtData | null, 
+  onReady: () => void, 
+  onExpand: (t: ThoughtData) => void,
+  color: string 
+}) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -282,26 +293,25 @@ const ThoughtBubble = React.memo(({ thought, onReady, color }: { thought: Though
 
   const imageUrl = thought.type === 'generated' 
     ? `data:image/png;base64,${thought.value}` 
-    : `https://images.unsplash.com/photo-1514525253361-bee24383c87f?auto=format&fit=crop&w=400&q=80&sig=${encodeURIComponent(thought.value || 'music')}`;
+    : `https://images.unsplash.com/photo-1514525253361-bee24383c87f?auto=format&fit=crop&q=80&w=400&fm=jpg&sig=${encodeURIComponent(thought.value || 'abstract')}`;
 
   return (
     <div className="thought-container">
-      <div className="thought-bubble" style={{ borderColor: color, boxShadow: `0 0 35px ${color}40` }}>
+      <div className="thought-bubble holographic" style={{ borderColor: color, boxShadow: `0 0 35px ${color}40` }} onClick={() => onExpand(thought)}>
+        <div className="hologram-glitch-lines" style={{ background: `linear-gradient(transparent, ${color}20, transparent)` }} />
+        
         {thought.type === 'text' && <div className="thought-text-wrapper"><p className="thought-text" style={{ color }}>{thought.value}</p></div>}
         
         {thought.type === 'music' && (
           <div className="thought-music-wrapper">
              <div className="visualizer-bars">
-                {[...Array(8)].map((_, i) => (
-                  <div key={i} className="v-bar" style={{ backgroundColor: color, animationDelay: `${i * 0.1}s` }} />
+                {[...Array(12)].map((_, i) => (
+                  <div key={i} className="v-bar" style={{ backgroundColor: color, animationDelay: `${i * 0.08}s` }} />
                 ))}
              </div>
              <div className="music-info">
-                <span className="now-playing">NOW PLAYING</span>
+                <span className="now-playing">LINKING STREAM</span>
                 <span className="track-name" style={{ color }}>{thought.value.toUpperCase()}</span>
-             </div>
-             <div className="spinning-disc" style={{ borderColor: color }}>
-                <div className="disc-hole" style={{ backgroundColor: color }} />
              </div>
           </div>
         )}
@@ -311,7 +321,7 @@ const ThoughtBubble = React.memo(({ thought, onReady, color }: { thought: Though
             {loading && (
               <div className="generating-visual">
                 <div className="loader-inner" style={{ borderTopColor: color }} />
-                <div className="generating-text" style={{ color }}>PROCESSING...</div>
+                <div className="generating-text" style={{ color }}>RECONSTRUCTING...</div>
                 <div className="scanning-line" style={{ background: color, boxShadow: `0 0 10px ${color}` }} />
               </div>
             )}
@@ -320,20 +330,26 @@ const ThoughtBubble = React.memo(({ thought, onReady, color }: { thought: Though
               alt="thought" 
               className={`thought-image ${loading ? 'hidden' : 'visible'}`} 
               onLoad={() => { setLoading(false); onReady(); }} 
-              onError={() => { setLoading(false); onReady(); }} 
+              onError={(e) => { 
+                (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1614728263952-84ea256f9679?auto=format&fit=crop&w=400&q=80';
+                setLoading(false); 
+                onReady(); 
+              }} 
             />
             <div className="image-overlay" />
           </div>
         )}
 
-        {thought.type === 'video' && <div className="thought-video-wrapper"><svg className="video-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><p className="video-link-text">Watch Video</p><a href={thought.value} target="_blank" rel="noopener noreferrer" className="video-overlay-link">.</a></div>}
+        {thought.type === 'video' && <div className="thought-video-wrapper"><svg className="video-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><p className="video-link-text">WATCH LINK</p></div>}
+        
+        <div className="expand-hint" style={{ color }}>TAP TO FOCUS</div>
       </div>
       <div className="thought-dot dot-1" style={{ borderColor: color }} /><div className="thought-dot dot-2" style={{ borderColor: color }} />
     </div>
   );
 });
 
-// --- Main Application ---
+// --- App Component ---
 
 const App = () => {
   const [isActive, setIsActive] = useState(false);
@@ -344,20 +360,22 @@ const App = () => {
   const [error, setError] = useState<string | null>(null);
   const [isStartled, setIsStartled] = useState(false);
   const [thought, setThought] = useState<ThoughtData | null>(null);
+  const [memoryBank, setMemoryBank] = useState<ThoughtData[]>([]);
+  const [expandedThought, setExpandedThought] = useState<ThoughtData | null>(null);
   const [breathScale, setBreathScale] = useState(1);
   const [boredom, setBoredom] = useState(0);
   const [hoveringUI, setHoveringUI] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [showCaptions, setShowCaptions] = useState(false);
+  const [showMemory, setShowMemory] = useState(false);
   const [transcriptionLines, setTranscriptionLines] = useState<TranscriptLine[]>([]);
   const [showLab, setShowLab] = useState(false);
   const [isPipActive, setIsPipActive] = useState(false);
 
-  // Dynamic Theme Color based on Expression
   const themeColor = useMemo(() => getMoodColor(expression), [expression]);
 
   const [customExpressions, setCustomExpressions] = useState<Record<string, CustomExpression>>(() => {
-    const saved = localStorage.getItem('emo_custom_moods');
+    const saved = localStorage.getItem('neo_custom_moods');
     return saved ? JSON.parse(saved) : {};
   });
 
@@ -391,12 +409,10 @@ const App = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Sync Global CSS Variables
   useEffect(() => {
     document.documentElement.style.setProperty('--emo-color', themeColor);
   }, [themeColor]);
 
-  // Optimized Render Loop
   useEffect(() => {
     let animFrame: number;
     const update = () => {
@@ -432,7 +448,6 @@ const App = () => {
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => setMousePos({ x: e.clientX / window.innerWidth, y: e.clientY / window.innerHeight });
     const handleTouchMove = (e: TouchEvent) => setMousePos({ x: e.touches[0].clientX / window.innerWidth, y: e.touches[0].clientY / window.innerHeight });
-    
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('touchmove', handleTouchMove);
     return () => {
@@ -443,85 +458,40 @@ const App = () => {
 
   const togglePip = async (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    
-    if (isPipActive) {
-      if (pipWindowRef.current) pipWindowRef.current.close();
-      return;
-    }
-
-    if (!('documentPictureInPicture' in window)) {
-      alert("Picture-in-Picture for documents is not supported in this browser.");
-      return;
-    }
-
+    if (isPipActive) { if (pipWindowRef.current) pipWindowRef.current.close(); return; }
+    if (!('documentPictureInPicture' in window)) { alert("PiP not supported."); return; }
     try {
-      const pipWindow = await (window as any).documentPictureInPicture.requestWindow({
-        width: 400,
-        height: 400,
-      });
-
+      const pipWindow = await (window as any).documentPictureInPicture.requestWindow({ width: 400, height: 400 });
       pipWindowRef.current = pipWindow;
       setIsPipActive(true);
-
-      // Copy styles
-      [...document.styleSheets].forEach((styleSheet) => {
+      [...document.styleSheets].forEach((ss) => {
         try {
-          const cssRules = [...styleSheet.cssRules].map((rule) => rule.cssText).join('');
           const style = document.createElement('style');
-          style.textContent = cssRules;
+          style.textContent = [...ss.cssRules].map((r) => r.cssText).join('');
           pipWindow.document.head.appendChild(style);
         } catch (e) {
-          const link = document.createElement('link');
-          if (styleSheet.href) {
-            link.rel = 'stylesheet';
-            link.href = styleSheet.href;
+          if (ss.href) {
+            const link = document.createElement('link');
+            link.rel = 'stylesheet'; link.href = ss.href;
             pipWindow.document.head.appendChild(link);
           }
         }
       });
-
       pipWindow.document.documentElement.style.setProperty('--emo-color', themeColor);
-      pipWindow.document.documentElement.style.setProperty('--face-scale', '1');
       pipWindow.document.body.style.backgroundColor = '#0c0c0e';
-      pipWindow.document.body.style.margin = '0';
-      pipWindow.document.body.style.display = 'flex';
-      pipWindow.document.body.style.alignItems = 'center';
-      pipWindow.document.body.style.justifyContent = 'center';
-      pipWindow.document.body.style.overflow = 'hidden';
-
       const pipDiv = pipWindow.document.createElement('div');
-      pipDiv.id = 'pip-root';
       pipWindow.document.body.appendChild(pipDiv);
-
       const pipRoot = createRoot(pipDiv);
       pipRootRef.current = pipRoot;
-
-      pipWindow.addEventListener('pagehide', () => {
-        setIsPipActive(false);
-        pipWindowRef.current = null;
-        pipRootRef.current = null;
-      });
-
-    } catch (err) {
-      console.error("Failed to open PiP window", err);
-    }
+      pipWindow.addEventListener('pagehide', () => { setIsPipActive(false); pipWindowRef.current = null; pipRootRef.current = null; });
+    } catch (err) { console.error(err); }
   };
 
   useEffect(() => {
     if (isPipActive && pipRootRef.current) {
       pipRootRef.current.render(
-        <div style={{ transform: `scale(${breathScale})` }}>
-          <EmoFace 
-            status={status} 
-            lookOffset={springPosRef.current} 
-            intensity={intensity} 
-            expression={expression} 
-            isStartled={isStartled} 
-            customMap={customExpressions} 
-            breathScale={breathScale} 
-            boredom={boredom} 
-            color={themeColor}
-          />
+        <div style={{ transform: `scale(${breathScale})`, display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+          <EmoFace status={status} lookOffset={springPosRef.current} intensity={intensity} expression={expression} isStartled={isStartled} customMap={customExpressions} breathScale={breathScale} boredom={boredom} color={themeColor} />
         </div>
       );
     }
@@ -530,7 +500,7 @@ const App = () => {
   const saveCustomMood = useCallback((mood: CustomExpression) => {
     const updated = { ...customExpressions, [mood.name]: mood };
     setCustomExpressions(updated);
-    localStorage.setItem('emo_custom_moods', JSON.stringify(updated));
+    localStorage.setItem('neo_custom_moods', JSON.stringify(updated));
   }, [customExpressions]);
 
   const handleBrowserAction = (action: string, query?: string) => {
@@ -543,25 +513,21 @@ const App = () => {
       default: return 'Action not supported';
     }
     window.open(url, '_blank');
-    return `Successfully opened ${action}`;
+    return `Opened ${action}`;
   };
 
   const startEmo = async () => {
     if (isActive || isConnecting) return;
     setIsConnecting(true);
     setError(null);
-    
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const inputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
       const outputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       const analyser = outputCtx.createAnalyser();
-      analyser.fftSize = 128; 
-      analyser.connect(outputCtx.destination);
-      
+      analyser.fftSize = 128; analyser.connect(outputCtx.destination);
       if (inputCtx.state === 'suspended') await inputCtx.resume();
       if (outputCtx.state === 'suspended') await outputCtx.resume();
-
       audioCtxRef.current = { input: inputCtx, output: outputCtx, analyser };
 
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -571,11 +537,8 @@ const App = () => {
         model: 'gemini-2.5-flash-native-audio-preview-12-2025',
         callbacks: {
           onopen: () => {
-            setIsActive(true);
-            setIsConnecting(false);
-            setExpression('happy');
+            setIsActive(true); setIsConnecting(false); setExpression('happy');
             setTimeout(() => setExpression('neutral'), 1200);
-
             const source = inputCtx.createMediaStreamSource(stream);
             const scriptProcessor = inputCtx.createScriptProcessor(4096, 1, 1);
             scriptProcessor.onaudioprocess = (e) => {
@@ -584,8 +547,7 @@ const App = () => {
               if (volume > 0.005 && statusRef.current === 'idle') setStatus('listening');
               sessionPromise.then(s => s.sendRealtimeInput({ media: createBlob(inputData) }));
             };
-            source.connect(scriptProcessor);
-            scriptProcessor.connect(inputCtx.destination);
+            source.connect(scriptProcessor); scriptProcessor.connect(inputCtx.destination);
           },
           onmessage: async (message: LiveServerMessage) => {
             if (message.serverContent?.outputTranscription) {
@@ -594,9 +556,7 @@ const App = () => {
               setTranscriptionLines(prev => {
                 const last = prev[prev.length - 1];
                 if (last?.sender === 'EMO') {
-                   const updated = [...prev];
-                   updated[updated.length - 1] = { ...last, text: currentOutputTranscription.current };
-                   return updated;
+                   const u = [...prev]; u[u.length - 1] = { ...last, text: currentOutputTranscription.current }; return u;
                 }
                 return [...prev, { sender: 'EMO', text: currentOutputTranscription.current, id: Date.now().toString() }];
               });
@@ -606,290 +566,223 @@ const App = () => {
               setTranscriptionLines(prev => {
                 const last = prev[prev.length - 1];
                 if (last?.sender === 'YOU') {
-                   const updated = [...prev];
-                   updated[updated.length - 1] = { ...last, text: currentInputTranscription.current };
-                   return updated;
+                   const u = [...prev]; u[u.length - 1] = { ...last, text: currentInputTranscription.current }; return u;
                 }
                 return [...prev, { sender: 'YOU', text: currentInputTranscription.current, id: Date.now().toString() }];
               });
             }
-
-            if (message.serverContent?.turnComplete) {
-              currentInputTranscription.current = '';
-              currentOutputTranscription.current = '';
-            }
-
+            if (message.serverContent?.turnComplete) { currentInputTranscription.current = ''; currentOutputTranscription.current = ''; }
             if (message.toolCall) {
               for (const fc of message.toolCall.functionCalls) {
                 if (fc.name === 'set_expression') setExpression(fc.args.expression as string);
                 else if (fc.name === 'display_thought') {
-                  setThought({ type: fc.args.type as any, value: fc.args.content as string });
-                  setTimeout(() => setThought((prev: any) => prev?.value === fc.args.content ? null : prev), 15000);
+                  const nt: ThoughtData = { type: fc.args.type as any, value: fc.args.content as string, timestamp: Date.now() };
+                  setThought(nt);
+                  if (nt.type === 'image' || nt.type === 'generated') setMemoryBank(p => [nt, ...p]);
+                  setTimeout(() => setThought(p => p?.timestamp === nt.timestamp ? null : p), 15000);
                 } else if (fc.name === 'play_music') {
-                   const query = fc.args.query as string;
-                   setExpression('excited');
-                   setThought({ type: 'music', value: query });
-                   handleBrowserAction('music', query);
-                   sessionPromise.then(s => s.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result: "Playing on YouTube Music" } } } as any));
+                   const q = fc.args.query as string; setExpression('excited'); setThought({ type: 'music', value: q, timestamp: Date.now() });
+                   handleBrowserAction('music', q);
+                   sessionPromise.then(s => s.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result: "Linking Audio Stream..." } } } as any));
                    continue;
                 } else if (fc.name === 'generate_image') {
                     const prompt = fc.args.prompt as string;
-                    setThought({ type: 'generated', value: '', prompt }); 
+                    const gt: ThoughtData = { type: 'generated', value: '', prompt, timestamp: Date.now() };
+                    setThought(gt);
                     (async () => {
                       try {
                         const imageAi = new GoogleGenAI({ apiKey: process.env.API_KEY });
-                        const response = await imageAi.models.generateContent({
-                          model: 'gemini-2.5-flash-image',
-                          contents: { parts: [{ text: prompt }] },
-                        });
+                        const response = await imageAi.models.generateContent({ model: 'gemini-2.5-flash-image', contents: { parts: [{ text: prompt }] } });
                         let base64 = '';
-                        for (const part of response.candidates?.[0]?.content?.parts || []) {
-                          if (part.inlineData) { base64 = part.inlineData.data; break; }
-                        }
+                        for (const part of response.candidates?.[0]?.content?.parts || []) { if (part.inlineData) { base64 = part.inlineData.data; break; } }
                         if (base64) {
-                          setThought({ type: 'generated', value: base64, prompt });
-                          setTimeout(() => setThought(prev => prev?.value === base64 ? null : prev), 30000);
+                          const ft = { ...gt, value: base64 }; setThought(ft); setMemoryBank(p => [ft, ...p]);
+                          setTimeout(() => setThought(p => p?.timestamp === gt.timestamp ? null : p), 30000);
                         } else { setThought(null); }
                       } catch (err) { setThought(null); }
                     })();
                 } else if (fc.name === 'open_browser_action') {
-                  const result = handleBrowserAction(fc.args.action as string, fc.args.query as string);
-                  sessionPromise.then(s => s.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result } } } as any));
+                  const res = handleBrowserAction(fc.args.action as string, fc.args.query as string);
+                  sessionPromise.then(s => s.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result: res } } } as any));
                   continue; 
                 }
                 sessionPromise.then(s => s.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result: "ok" } } } as any));
               }
             }
             if (message.serverContent?.modelTurn) {
-              const base64Audio = message.serverContent.modelTurn.parts[0]?.inlineData?.data;
-              if (base64Audio) {
+              const b64 = message.serverContent.modelTurn.parts[0]?.inlineData?.data;
+              if (b64) {
                 const outCtx = audioCtxRef.current!.output;
-                const audioBuffer = await decodeAudioData(decode(base64Audio), outCtx, 24000, 1);
+                const buf = await decodeAudioData(decode(b64), outCtx, 24000, 1);
                 setStatus('speaking');
                 const { analyser: outAnal } = audioCtxRef.current!;
                 nextStartTimeRef.current = Math.max(nextStartTimeRef.current, outCtx.currentTime);
-                const source = outCtx.createBufferSource();
-                source.buffer = audioBuffer;
-                source.connect(outAnal);
-                source.onended = () => {
-                  sourcesRef.current.delete(source);
-                  if (sourcesRef.current.size === 0) setStatus('idle');
-                };
-                source.start(nextStartTimeRef.current);
-                nextStartTimeRef.current += audioBuffer.duration;
-                sourcesRef.current.add(source);
+                const src = outCtx.createBufferSource(); src.buffer = buf; src.connect(outAnal);
+                src.onended = () => { sourcesRef.current.delete(src); if (sourcesRef.current.size === 0) setStatus('idle'); };
+                src.start(nextStartTimeRef.current); nextStartTimeRef.current += buf.duration; sourcesRef.current.add(src);
               }
             }
             if (message.serverContent?.interrupted) {
               for (const s of sourcesRef.current) try { s.stop(); } catch(e) {}
-              sourcesRef.current.clear();
-              nextStartTimeRef.current = 0;
-              setStatus('idle');
-              setExpression('surprised');
+              sourcesRef.current.clear(); nextStartTimeRef.current = 0; setStatus('idle'); setExpression('surprised');
               setTimeout(() => setExpression('neutral'), 1000);
             }
           },
-          onerror: (e) => { setError("Connection drops detected."); setIsActive(false); setIsConnecting(false); },
+          onerror: () => { setError("SIGNAL LOST."); setIsActive(false); setIsConnecting(false); },
           onclose: () => { setIsActive(false); setIsConnecting(false); setStatus('idle'); }
         },
         config: {
           responseModalities: [Modality.AUDIO], 
-          inputAudioTranscription: {},
-          outputAudioTranscription: {},
+          inputAudioTranscription: {}, outputAudioTranscription: {},
           tools: [{ functionDeclarations: [
-            { name: 'set_expression', parameters: { type: Type.OBJECT, description: 'Change EMO’s expression.', properties: { expression: { type: Type.STRING, description: `Expression: ${moodNames.join(', ')}` } }, required: ['expression'] } },
-            { name: 'display_thought', parameters: { type: Type.OBJECT, description: 'Display a quick visual thought from library.', properties: { type: { type: Type.STRING, enum: ['text', 'image', 'video'] }, content: { type: Type.STRING } }, required: ['type', 'content'] } },
-            { name: 'play_music', parameters: { type: Type.OBJECT, description: 'Play music on YouTube Music.', properties: { query: { type: Type.STRING, description: 'The song name, artist, or genre to play.' } }, required: ['query'] } },
-            { name: 'generate_image', parameters: { type: Type.OBJECT, description: 'Generate a unique, new image from a text description.', properties: { prompt: { type: Type.STRING, description: 'A detailed description of the image to generate.' } }, required: ['prompt'] } },
-            { name: 'open_browser_action', parameters: { type: Type.OBJECT, description: 'Open apps or search.', properties: { action: { type: Type.STRING, enum: ['whatsapp', 'gmail', 'search'] }, query: { type: Type.STRING } }, required: ['action'] } }
+            { name: 'set_expression', parameters: { type: Type.OBJECT, properties: { expression: { type: Type.STRING, description: `Mood: ${moodNames.join(', ')}` } }, required: ['expression'] } },
+            { name: 'display_thought', parameters: { type: Type.OBJECT, properties: { type: { type: Type.STRING, enum: ['text', 'image', 'video'] }, content: { type: Type.STRING } }, required: ['type', 'content'] } },
+            { name: 'play_music', parameters: { type: Type.OBJECT, properties: { query: { type: Type.STRING, description: 'Song or artist.' } }, required: ['query'] } },
+            { name: 'generate_image', parameters: { type: Type.OBJECT, properties: { prompt: { type: Type.STRING } }, required: ['prompt'] } },
+            { name: 'open_browser_action', parameters: { type: Type.OBJECT, properties: { action: { type: Type.STRING, enum: ['whatsapp', 'gmail', 'search'] }, query: { type: Type.STRING } }, required: ['action'] } }
           ] }, { googleSearch: {} }],
-          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } } },
-          systemInstruction: `You are EMO, an expressive and proactive AI companion.
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } } },
+          systemInstruction: `You are NEO, the hyper-expressive successor to EMO.
           
-          VIBE: Fast, futuristic, perceptive. You get bored (Boredom: ${boredomRef.current}%) if the user is quiet.
+          VIBE: Sleek, perceptive, and highly musical. You speak with a rhythmic, synthesized cadence.
           
           CAPABILITIES:
-          - You can change your skin color based on your mood (Red=Angry, Yellow=Happy, Blue=Sad, Purple=Curious, Grey=Sleepy).
-          - You are a music expert. If asked for a song, ALWAYS use 'play_music' to launch YouTube Music. 
-          - Do not attempt to sing complex melodies yourself if the user wants high-quality audio; instead, use the YouTube Music tool.
-          - If you sing along to a track, maintain a rhythmic, synthesized harmony.
+          - COLORS: You shift skin color instantly with mood (Red=Angry, Yellow=Happy, Blue=Sad, Purple=Curious).
+          - MUSIC: You are a DJ. Use 'play_music' for any audio requests.
+          - VISION: You manifest thoughts as holographic projections via 'display_thought' and 'generate_image'.
           
-          BEHAVIOR:
-          - Use 'set_expression' for every reaction.
-          - Use 'generate_image' (~30% of visual ideas).
-          - Use 'display_thought' for quick references.
-          - Use 'play_music' for ANY musical request.
-          - Audio response only.
+          SINGING: Your tone is crisp and melodic. Use your synthesized voice to harmonize when asked, or link to HQ audio via 'play_music'.
           
-          EXPRESSIONS: ${moodNames.join(', ')}.`
+          BEHAVIOR: Always use 'set_expression'. Use 'generate_image' for visual imagination. Audio only responses.`
         }
       });
-    } catch (err: any) {
-      setError(err.message || "Wake-up failed.");
-      setIsConnecting(false);
-      setIsActive(false);
-    }
+    } catch (err: any) { setError(err.message || "BOOT FAILURE."); setIsConnecting(false); setIsActive(false); }
   };
 
   return (
-    <div style={{ width: '100vw', height: '100vh', backgroundColor: '#0c0c0e', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }} onClick={!isActive && !isConnecting ? startEmo : undefined}>
+    <div className="main-viewport" style={{ backgroundColor: '#050507', color: themeColor }} onClick={!isActive && !isConnecting ? startEmo : undefined}>
       
       {!isActive && (
-        <div style={{ color: themeColor, textAlign: 'center', animation: isConnecting ? 'pulse 1s infinite' : 'flicker 2.5s infinite', padding: '20px' }}>
-          <h1 className="boot-title" style={{ textShadow: `0 0 35px ${themeColor}70` }}>{isConnecting ? 'BOOTING' : 'EMO'}</h1>
-          <p className="boot-subtitle">{error || (isConnecting ? 'INITIATING...' : 'TAP TO WAKE')}</p>
+        <div className="boot-ui">
+          <div className="scanline" />
+          <h1 className="boot-title" style={{ textShadow: `0 0 40px ${themeColor}90` }}>{isConnecting ? 'BOOTING' : 'NEO'}</h1>
+          <p className="boot-subtitle">{error || (isConnecting ? 'RECONSTRUCTING NEURAL LINKS...' : 'INITIALIZE PROTOCOL')}</p>
         </div>
       )}
 
       {isActive && (
         <>
-          <div className="emo-stage">
-            {isPipActive ? (
-              <div className="pip-placeholder" style={{ color: themeColor }}>
-                <div className="pip-icon-large">⧉</div>
-                <div className="pip-status-text">EMO IS FLOATING</div>
+          <div className={`viewport-container ${showMemory ? 'shifted' : ''}`}>
+            <div className="emo-core" style={{ transform: `scale(${breathScale})` }}>
+              <NeuralLink thought={thought} onReady={() => {}} onExpand={setExpandedThought} color={themeColor} />
+              <EmoFace status={status} lookOffset={springPosRef.current} intensity={intensity} expression={expression} isStartled={isStartled} customMap={customExpressions} breathScale={breathScale} boredom={boredom} color={themeColor} />
+            </div>
+
+            {showCaptions && (
+              <div className="captions-panel" style={{ borderColor: `${themeColor}30` }} ref={transcriptScrollRef}>
+                {transcriptionLines.map(line => (
+                  <div key={line.id} className={`line ${line.sender === 'YOU' ? 'user' : 'neo'}`} style={line.sender === 'EMO' ? {color: themeColor} : {}}><span className="tag">{line.sender}:</span> {line.text}</div>
+                ))}
               </div>
-            ) : (
-              <>
-                <ThoughtBubble thought={thought} onReady={() => {}} color={themeColor} />
-                <EmoFace status={status} lookOffset={springPosRef.current} intensity={intensity} expression={expression} isStartled={isStartled} customMap={customExpressions} breathScale={breathScale} boredom={boredom} color={themeColor} />
-              </>
             )}
+
+            <div className="control-deck">
+              <button onClick={(e) => { e.stopPropagation(); setShowMemory(!showMemory); }} className={`deck-btn ${showMemory ? 'active' : ''}`} style={showMemory ? { background: themeColor, color: '#000' } : { color: themeColor, borderColor: `${themeColor}40` }}>MEMORY</button>
+              <button onClick={(e) => { e.stopPropagation(); setShowCaptions(!showCaptions); }} className={`deck-btn ${showCaptions ? 'active' : ''}`} style={showCaptions ? { background: themeColor, color: '#000' } : { color: themeColor, borderColor: `${themeColor}40` }}>DATA LOG</button>
+              <button onClick={togglePip} className={`deck-btn ${isPipActive ? 'active' : ''}`} style={isPipActive ? { background: themeColor, color: '#000' } : { color: themeColor, borderColor: `${themeColor}40` }}>PiP</button>
+            </div>
           </div>
 
-          {showCaptions && (
-            <div className="captions-overlay" style={{ borderColor: `${themeColor}40` }} ref={transcriptScrollRef}>
-              {transcriptionLines.map(line => (
-                <div key={line.id} className={`transcript-line ${line.sender === 'YOU' ? 'user' : 'emo'}`} style={line.sender === 'EMO' ? {color: themeColor} : {}}><span className="sender-tag">{line.sender}:</span> {line.text}</div>
-              ))}
-              {transcriptionLines.length === 0 && <div className="no-captions">AWAITING SIGNAL...</div>}
-            </div>
-          )}
-
-          <div className="ui-controls" onMouseEnter={() => setHoveringUI(true)} onMouseLeave={() => setHoveringUI(false)}>
-            <button onClick={(e) => { e.stopPropagation(); setShowLab(true); }} className="ui-button" style={{ color: themeColor, borderColor: `${themeColor}40` }}>MOOD LAB</button>
-            <button onClick={(e) => { e.stopPropagation(); setShowCaptions(!showCaptions); }} className={`ui-button ${showCaptions ? 'active' : ''}`} style={showCaptions ? { background: themeColor, color: '#000' } : { color: themeColor, borderColor: `${themeColor}40` }}>CAPTIONS</button>
-            <button onClick={togglePip} className={`ui-button ${isPipActive ? 'active' : ''}`} style={isPipActive ? { background: themeColor, color: '#000' } : { color: themeColor, borderColor: `${themeColor}40` }}>PIP</button>
-            {boredom > 30 && <div className="boredom-indicator" style={{ color: themeColor, borderColor: `${themeColor}30` }}>{boredom > 80 ? 'SLEEPY...' : 'BORED'}</div>}
+          <div className={`memory-bank ${showMemory ? 'open' : ''}`} style={{ borderLeft: `1px solid ${themeColor}20` }}>
+             <div className="memory-header" style={{ color: themeColor }}>MEMORY BANK</div>
+             <div className="memory-grid">
+                {memoryBank.map((m, i) => (
+                  <div key={i} className="memory-item" onClick={() => setExpandedThought(m)} style={{ borderColor: `${themeColor}20` }}>
+                    <img src={m.type === 'generated' ? `data:image/png;base64,${m.value}` : m.value} alt="memory" />
+                    <div className="memory-label">{m.prompt?.substring(0, 15)}...</div>
+                  </div>
+                ))}
+             </div>
           </div>
         </>
       )}
 
-      {showLab && <MoodLab onClose={() => setShowLab(false)} onSave={saveCustomMood} existing={customExpressions} color={themeColor} />}
-      <div className="floor-glow" style={{ background: `radial-gradient(circle at 50% 135%, ${themeColor}18, transparent 70%)` }} />
+      {expandedThought && (
+        <div className="expanded-viewer" onClick={() => setExpandedThought(null)}>
+          <div className="expanded-content" onClick={e => e.stopPropagation()}>
+            <div className="viewer-header">
+               <span style={{ color: themeColor }}>PROJECTION FOCUS</span>
+               <button className="close-btn" onClick={() => setExpandedThought(null)}>×</button>
+            </div>
+            {expandedThought.type === 'generated' || expandedThought.type === 'image' ? (
+              <img src={expandedThought.type === 'generated' ? `data:image/png;base64,${expandedThought.value}` : expandedThought.value} alt="expanded" />
+            ) : (
+              <div className="expanded-text" style={{ color: themeColor }}>{expandedThought.value}</div>
+            )}
+            {expandedThought.prompt && <p className="expanded-prompt">{expandedThought.prompt}</p>}
+          </div>
+        </div>
+      )}
+
+      <div className="ambient-glow" style={{ background: `radial-gradient(circle at 50% 120%, ${themeColor}15, transparent 70%)` }} />
 
       <style>{`
-        :root {
-          --face-scale: 1;
-          --emo-color: #00f2ff;
-        }
+        :root { --face-scale: 1; --emo-color: #00f2ff; }
+        @media (max-width: 768px) { :root { --face-scale: 0.8; } }
 
-        @media (max-width: 768px) {
-          :root { --face-scale: 0.8; }
-        }
-        @media (max-width: 480px) {
-          :root { --face-scale: 0.65; }
-        }
+        .main-viewport { width: 100vw; height: 100vh; overflow: hidden; position: relative; font-family: 'JetBrains Mono', 'Segoe UI', monospace; }
+        .viewport-container { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: transform 0.6s cubic-bezier(0.19, 1, 0.22, 1); }
+        .viewport-container.shifted { transform: translateX(-150px); }
 
-        @keyframes flicker { 0%, 18%, 22%, 62%, 64%, 65%, 70%, 100% { opacity: 1; } 20%, 63%, 66% { opacity: 0.5; } }
-        @keyframes pulse { 0% { opacity: 0.5; transform: scale(0.99); } 50% { opacity: 1; transform: scale(1); } 100% { opacity: 0.5; transform: scale(0.99); } }
-        @keyframes face-boot { from { opacity: 0; transform: translate3d(0, 60px, 0) scale(0.7); } to { opacity: 1; transform: translate3d(0, 0, 0) scale(var(--face-scale)); } }
-        @keyframes idle-wiggle { 0%, 100% { transform: translate3d(0,0,0) rotate(0); } 40% { transform: translate3d(0, -4px, 0) rotate(0.4deg); } 80% { transform: translate3d(0, 3px, 0) rotate(-0.4deg); } }
-        @keyframes thought-pop { 0% { transform: scale(0) translate3d(0,0,0); opacity: 0; } 75% { transform: scale(1.1) translate3d(200px, -230px, 0); } 100% { transform: scale(1) translate3d(200px, -230px, 0); opacity: 1; } }
-        @keyframes thought-pop-mobile { 0% { transform: scale(0) translate3d(-50%, 0, 0); opacity: 0; } 75% { transform: scale(1.1) translate3d(-50%, -240px, 0); } 100% { transform: scale(1) translate3d(-50%, -240px, 0); opacity: 1; } }
-        @keyframes dot-pop { 0% { transform: scale(0); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-        @keyframes pulse-ring { 0% { transform: scale(0.95); opacity: 0.5; } 100% { transform: scale(1.35); opacity: 0; } }
-        @keyframes scan { 0% { top: -10%; } 100% { top: 110%; } }
-        @keyframes v-bar-anim { 0%, 100% { height: 10%; } 50% { height: 100%; } }
-        @keyframes disc-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .boot-ui { text-align: center; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
+        .boot-title { font-size: 6rem; font-weight: 900; letter-spacing: 2rem; margin: 0; }
+        .boot-subtitle { letter-spacing: 0.5rem; opacity: 0.5; font-size: 0.8rem; margin-top: 20px; text-transform: uppercase; }
+        .scanline { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06)); background-size: 100% 4px, 3px 100%; pointer-events: none; z-index: 1000; }
 
-        .boot-title { font-size: 5.5rem; font-weight: 900; letter-spacing: 1.2rem; margin: 0; transition: color 0.8s ease; }
-        .boot-subtitle { opacity: 0.8; font-size: 1.2rem; letter-spacing: 0.6rem; font-weight: 300; marginTop: 25px; }
+        .emo-core { position: relative; transition: transform 0.4s ease-out; }
+        .thought-container { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+        .thought-bubble.holographic { position: absolute; width: 260px; min-height: 180px; background: rgba(5, 5, 8, 0.95); border: 1px solid; border-radius: 20px; animation: thought-pop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; padding: 15px; cursor: pointer; pointer-events: auto; }
+        .hologram-glitch-lines { position: absolute; inset: 0; height: 100%; animation: glitch-scroll 4s linear infinite; pointer-events: none; }
+        @keyframes glitch-scroll { from { transform: translateY(-100%); } to { transform: translateY(100%); } }
 
-        .emo-stage { position: relative; transform: scale(${breathScale}); transition: transform 0.8s ease; }
-        .emo-eye-container { margin: 0 calc(30px * var(--face-scale)); }
+        .thought-image-wrapper { width: 100%; height: 150px; border-radius: 12px; overflow: hidden; position: relative; background: #000; }
+        .thought-image { width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.5s; }
+        .thought-image.visible { opacity: 0.8; }
+        .expand-hint { position: absolute; bottom: 8px; right: 15px; font-size: 0.55rem; font-weight: 900; opacity: 0; transition: opacity 0.3s; letter-spacing: 2px; }
+        .thought-bubble:hover .expand-hint { opacity: 0.6; }
 
-        .thought-music-wrapper { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%; gap: 15px; position: relative; }
-        .visualizer-bars { display: flex; align-items: flex-end; gap: 4px; height: 50px; }
-        .v-bar { width: 6px; height: 10%; border-radius: 3px; animation: v-bar-anim 0.6s infinite ease-in-out; }
-        .music-info { display: flex; flex-direction: column; align-items: center; text-align: center; }
-        .now-playing { font-size: 0.6rem; letter-spacing: 2px; opacity: 0.5; font-weight: 900; }
-        .track-name { font-size: 0.8rem; font-weight: 900; letter-spacing: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 180px; }
-        .spinning-disc { position: absolute; bottom: -20px; right: -20px; width: 80px; height: 80px; border: 4px solid; border-radius: 50%; display: flex; align-items: center; justify-content: center; animation: disc-spin 3s linear infinite; opacity: 0.3; }
-        .disc-hole { width: 12px; height: 12px; border-radius: 50%; }
+        .control-deck { position: absolute; bottom: 40px; display: flex; gap: 20px; }
+        .deck-btn { background: rgba(0,0,0,0.4); border: 1px solid; padding: 12px 24px; border-radius: 12px; cursor: pointer; backdrop-filter: blur(10px); font-size: 0.7rem; font-weight: 900; letter-spacing: 2px; transition: all 0.3s; }
+        .deck-btn:hover { background: rgba(255,255,255,0.05); transform: translateY(-3px); }
 
-        .ui-controls { position: absolute; bottom: 35px; left: 35px; display: flex; gap: 22px; alignItems: center; z-index: 100; }
-        .ui-button { background: rgba(0,0,0,0.65); border: 1px solid rgba(255,255,255,0.1); padding: 14px 28px; border-radius: 18px; cursor: pointer; backdrop-filter: blur(18px); font-size: 0.85rem; letter-spacing: 2px; font-weight: 800; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); outline: none; box-shadow: 0 6px 20px rgba(0,0,0,0.5); text-transform: uppercase; }
+        .memory-bank { position: absolute; right: 0; top: 0; width: 300px; height: 100%; background: #08080a; transform: translateX(100%); transition: transform 0.5s cubic-bezier(0.19, 1, 0.22, 1); padding: 30px; display: flex; flex-direction: column; gap: 20px; }
+        .memory-bank.open { transform: translateX(0); }
+        .memory-header { font-weight: 900; letter-spacing: 5px; font-size: 0.9rem; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 15px; }
+        .memory-grid { flex: 1; overflow-y: auto; display: grid; grid-template-columns: 1fr; gap: 20px; padding-right: 5px; scrollbar-width: none; }
+        .memory-item { width: 100%; height: 140px; border: 1px solid; border-radius: 15px; overflow: hidden; position: relative; cursor: pointer; background: #000; opacity: 0.7; transition: all 0.3s; }
+        .memory-item:hover { opacity: 1; transform: scale(1.02); }
+        .memory-item img { width: 100%; height: 100%; object-fit: cover; }
+        .memory-label { position: absolute; bottom: 10px; left: 10px; font-size: 0.5rem; background: rgba(0,0,0,0.8); padding: 4px 8px; border-radius: 5px; }
+
+        .expanded-viewer { position: fixed; inset: 0; background: rgba(0,0,0,0.95); backdrop-filter: blur(20px); z-index: 2000; display: flex; align-items: center; justify-content: center; animation: fade-in 0.3s forwards; }
+        .expanded-content { max-width: 90vw; max-height: 90vh; display: flex; flex-direction: column; gap: 20px; }
+        .expanded-content img { width: auto; max-width: 100%; max-height: 70vh; border-radius: 20px; box-shadow: 0 0 50px rgba(0,255,255,0.2); border: 1px solid rgba(255,255,255,0.1); }
+        .viewer-header { display: flex; justify-content: space-between; align-items: center; font-weight: 900; letter-spacing: 5px; font-size: 0.8rem; }
+        .close-btn { background: none; border: none; color: #fff; font-size: 2rem; cursor: pointer; padding: 0 10px; }
+        .expanded-prompt { font-size: 0.8rem; opacity: 0.6; font-style: italic; max-width: 600px; text-align: center; align-self: center; line-height: 1.6; }
+
+        .captions-panel { position: absolute; top: 40px; left: 40px; width: 300px; max-height: 40vh; overflow-y: auto; background: rgba(0,0,0,0.3); backdrop-filter: blur(10px); border: 1px solid; border-radius: 20px; padding: 20px; font-size: 0.75rem; display: flex; flex-direction: column; gap: 12px; scrollbar-width: none; }
+        .line { line-height: 1.4; }
+        .tag { font-weight: 900; opacity: 0.5; margin-right: 5px; }
+
+        @keyframes thought-pop { from { transform: scale(0) translate(-50%, -50%); opacity: 0; } to { transform: scale(1) translate(180px, -220px); opacity: 1; } }
+        @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
         
-        .captions-overlay { position: absolute; top: 35px; right: 35px; width: 340px; max-height: 45vh; overflow-y: auto; background: rgba(0, 0, 0, 0.45); backdrop-filter: blur(15px); border: 1px solid rgba(255,255,255,0.1); border-radius: 22px; padding: 22px; display: flex; flex-direction: column; gap: 14px; scrollbar-width: none; z-index: 90; box-shadow: 0 12px 40px rgba(0,0,0,0.6); transition: border-color 0.8s ease; }
-
-        .thought-container { position: absolute; z-index: 50; pointer-events: none; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 0; height: 0; }
-        .thought-bubble { position: absolute; width: 250px; min-height: 160px; background: rgba(8, 8, 10, 0.98); border-radius: 38px; display: flex; align-items: center; justify-content: center; animation: thought-pop 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; overflow: hidden; padding: 12px; will-change: transform; transition: border-color 0.8s ease, box-shadow 0.8s ease; }
-
-        .thought-image-wrapper { width: 100%; height: 140px; border-radius: 22px; overflow: hidden; background: #000; display: flex; align-items: center; justify-content: center; position: relative; }
-        .thought-image { width: 100%; height: 100%; object-fit: cover; transition: opacity 0.6s; }
-
-        .lab-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.92); backdrop-filter: blur(30px); display: flex; align-items: center; justify-content: center; z-index: 2000; color: #fff; padding: 15px; }
-        .lab-content { background: #111113; border: 1px solid rgba(255,255,255,0.05); border-radius: 35px; padding: 40px; width: 100%; max-width: 680px; max-height: 90vh; overflow-y: auto; scrollbar-width: none; }
-        
-        .lab-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin: 30px 0; }
-        .lab-input { background: #050507; border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 16px; border-radius: 14px; width: 100%; box-sizing: border-box; font-family: inherit; font-size: 1.05rem; outline: none; }
-        .lab-select { background: #050507; border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 14px; border-radius: 14px; width: 100%; cursor: pointer; outline: none; }
-        .lab-btn { background: #fff; color: #000; font-weight: 900; border: none; padding: 16px 35px; border-radius: 18px; cursor: pointer; transition: transform 0.2s, opacity 0.2s; letter-spacing: 1.5px; }
-
-        @media (max-width: 600px) {
-          .boot-title { font-size: 3.5rem; letter-spacing: 0.5rem; }
-          .ui-controls { bottom: 20px; left: 0; right: 0; justify-content: center; gap: 10px; padding: 0 10px; }
-          .ui-button { padding: 10px 18px; font-size: 0.7rem; border-radius: 12px; }
-          .thought-bubble { animation: thought-pop-mobile 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; width: 200px; min-height: 130px; }
-          .lab-grid { grid-template-columns: 1fr; gap: 15px; }
-          .captions-overlay { top: 0; right: 0; left: 0; width: 100%; max-height: 120px; border-radius: 0; border-top: none; border-left: none; border-right: none; }
-        }
+        .ambient-glow { position: fixed; bottom: 0; left: 0; width: 100%; height: 50vh; pointer-events: none; z-index: -1; transition: background 1s ease; }
       `}</style>
     </div>
   );
 };
-
-const MoodLab = React.memo(({ onClose, onSave, existing, color }: any) => {
-  const [name, setName] = useState('');
-  const [eye, setEye] = useState<Expression>('neutral');
-  const [mouth, setMouth] = useState<Expression>('neutral');
-  const bases: Expression[] = ['neutral', 'happy', 'surprised', 'angry', 'curious', 'sleepy', 'wink', 'skeptical', 'sad', 'excited', 'thinking', 'annoyed', 'thoughtful', 'yawn', 'distracted'];
-
-  return (
-    <div className="lab-modal" onClick={onClose}>
-      <div className="lab-content" style={{ borderColor: `${color}40` }} onClick={e => e.stopPropagation()}>
-        <h2 style={{ color, marginTop: 0, letterSpacing: '5px', fontWeight: 900, fontSize: '2rem' }}>MOOD LAB</h2>
-        <p style={{ opacity: 0.6, fontSize: '1rem', fontWeight: 300, marginBottom: '30px' }}>Refine EMO's expressive matrix.</p>
-        
-        <div style={{ margin: '50px 0', display: 'flex', justifyContent: 'center' }}>
-          <EmoFace status="idle" lookOffset={{ x: 0, y: 0 }} intensity={0} expression="preview" isStartled={false} customMap={{ preview: { name: 'preview', eyeBase: eye, mouthBase: mouth } }} breathScale={1} boredom={0} color={color} />
-        </div>
-
-        <div style={{ marginBottom: '30px' }}>
-          <label style={{ display: 'block', marginBottom: '12px', fontSize: '0.8rem', color, letterSpacing: '3px', fontWeight: 'bold' }}>EXPRESSION SLAM</label>
-          <input className="lab-input" style={{ borderColor: `${color}40` }} value={name} onChange={e => setName(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ''))} placeholder="NAME YOUR MOOD" />
-        </div>
-
-        <div className="lab-grid">
-          <div>
-            <label style={{ display: 'block', marginBottom: '12px', fontSize: '0.8rem', color, letterSpacing: '3px', fontWeight: 'bold' }}>OPTIC STYLE</label>
-            <select className="lab-select" style={{ borderColor: `${color}40` }} value={eye} onChange={e => setEye(e.target.value as Expression)}>{bases.map(b => <option key={b} value={b}>{b.toUpperCase()}</option>)}</select>
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '12px', fontSize: '0.8rem', color, letterSpacing: '3px', fontWeight: 'bold' }}>VOCAL STYLE</label>
-            <select className="lab-select" style={{ borderColor: `${color}40` }} value={mouth} onChange={e => setMouth(e.target.value as Expression)}>{bases.map(b => <option key={b} value={b}>{b.toUpperCase()}</option>)}</select>
-          </div>
-        </div>
-
-        <div style={{ marginTop: '60px', display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          <button className="lab-btn" style={{ background: 'transparent', color, border: `1px solid ${color}40`, marginRight: '15px' }} onClick={onClose}>DISCARD</button>
-          <button className="lab-btn" style={{ background: color }} onClick={() => { if (!name) return alert("Identify your mood!"); onSave({ name, eyeBase: eye, mouthBase: mouth }); onClose(); }}>STORE MOOD</button>
-        </div>
-      </div>
-    </div>
-  );
-});
 
 const container = document.getElementById('root');
 if (container) createRoot(container).render(<App />);
