@@ -306,6 +306,7 @@ const App = () => {
   const [showCaptions, setShowCaptions] = useState(false);
   const [transcriptionLines, setTranscriptionLines] = useState<TranscriptLine[]>([]);
   const [showLab, setShowLab] = useState(false);
+  const [isPipActive, setIsPipActive] = useState(false);
 
   const [customExpressions, setCustomExpressions] = useState<Record<string, CustomExpression>>(() => {
     const saved = localStorage.getItem('emo_custom_moods');
@@ -321,6 +322,8 @@ const App = () => {
   const transcriptScrollRef = useRef<HTMLDivElement>(null);
   const currentInputTranscription = useRef('');
   const currentOutputTranscription = useRef('');
+  const pipWindowRef = useRef<any>(null);
+  const pipRootRef = useRef<any>(null);
 
   useEffect(() => {
     statusRef.current = status;
@@ -384,6 +387,94 @@ const App = () => {
       window.removeEventListener('touchmove', handleTouchMove);
     };
   }, []);
+
+  const togglePip = async (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    
+    if (isPipActive) {
+      if (pipWindowRef.current) pipWindowRef.current.close();
+      return;
+    }
+
+    if (!('documentPictureInPicture' in window)) {
+      alert("Picture-in-Picture for documents is not supported in this browser.");
+      return;
+    }
+
+    try {
+      const pipWindow = await (window as any).documentPictureInPicture.requestWindow({
+        width: 400,
+        height: 400,
+      });
+
+      pipWindowRef.current = pipWindow;
+      setIsPipActive(true);
+
+      // Copy styles
+      [...document.styleSheets].forEach((styleSheet) => {
+        try {
+          const cssRules = [...styleSheet.cssRules].map((rule) => rule.cssText).join('');
+          const style = document.createElement('style');
+          style.textContent = cssRules;
+          pipWindow.document.head.appendChild(style);
+        } catch (e) {
+          const link = document.createElement('link');
+          if (styleSheet.href) {
+            link.rel = 'stylesheet';
+            link.href = styleSheet.href;
+            pipWindow.document.head.appendChild(link);
+          }
+        }
+      });
+
+      // Mirror CSS variables
+      const rootStyle = getComputedStyle(document.documentElement);
+      pipWindow.document.documentElement.style.setProperty('--emo-color', rootStyle.getPropertyValue('--emo-color'));
+      pipWindow.document.documentElement.style.setProperty('--face-scale', '1');
+      pipWindow.document.body.style.backgroundColor = '#0c0c0e';
+      pipWindow.document.body.style.margin = '0';
+      pipWindow.document.body.style.display = 'flex';
+      pipWindow.document.body.style.alignItems = 'center';
+      pipWindow.document.body.style.justifyContent = 'center';
+      pipWindow.document.body.style.overflow = 'hidden';
+
+      const pipDiv = pipWindow.document.createElement('div');
+      pipDiv.id = 'pip-root';
+      pipWindow.document.body.appendChild(pipDiv);
+
+      const pipRoot = createRoot(pipDiv);
+      pipRootRef.current = pipRoot;
+
+      pipWindow.addEventListener('pagehide', () => {
+        setIsPipActive(false);
+        pipWindowRef.current = null;
+        pipRootRef.current = null;
+      });
+
+    } catch (err) {
+      console.error("Failed to open PiP window", err);
+    }
+  };
+
+  // Re-render PiP content when state changes
+  useEffect(() => {
+    if (isPipActive && pipRootRef.current) {
+      pipRootRef.current.render(
+        <div style={{ transform: `scale(${breathScale})` }}>
+          <EmoFace 
+            status={status} 
+            lookOffset={springPosRef.current} 
+            intensity={intensity} 
+            expression={expression} 
+            isStartled={isStartled} 
+            customMap={customExpressions} 
+            breathScale={breathScale} 
+            boredom={boredom} 
+          />
+        </div>
+      );
+    }
+  }, [isPipActive, status, expression, intensity, isStartled, customExpressions, breathScale, boredom, springPosRef.current]);
 
   const saveCustomMood = useCallback((mood: CustomExpression) => {
     const updated = { ...customExpressions, [mood.name]: mood };
@@ -586,8 +677,17 @@ const App = () => {
       {isActive && (
         <>
           <div className="emo-stage">
-            <ThoughtBubble thought={thought} onReady={() => {}} />
-            <EmoFace status={status} lookOffset={springPosRef.current} intensity={intensity} expression={expression} isStartled={isStartled} customMap={customExpressions} breathScale={breathScale} boredom={boredom} />
+            {isPipActive ? (
+              <div className="pip-placeholder">
+                <div className="pip-icon-large">⧉</div>
+                <div className="pip-status-text">EMO IS FLOATING</div>
+              </div>
+            ) : (
+              <>
+                <ThoughtBubble thought={thought} onReady={() => {}} />
+                <EmoFace status={status} lookOffset={springPosRef.current} intensity={intensity} expression={expression} isStartled={isStartled} customMap={customExpressions} breathScale={breathScale} boredom={boredom} />
+              </>
+            )}
           </div>
 
           {showCaptions && (
@@ -602,6 +702,7 @@ const App = () => {
           <div className="ui-controls" onMouseEnter={() => setHoveringUI(true)} onMouseLeave={() => setHoveringUI(false)}>
             <button onClick={(e) => { e.stopPropagation(); setShowLab(true); }} className="ui-button">MOOD LAB</button>
             <button onClick={(e) => { e.stopPropagation(); setShowCaptions(!showCaptions); }} className={`ui-button ${showCaptions ? 'active' : ''}`}>CAPTIONS</button>
+            <button onClick={togglePip} className={`ui-button ${isPipActive ? 'active' : ''}`}>PIP</button>
             {boredom > 30 && <div className="boredom-indicator">{boredom > 80 ? 'SLEEPY...' : 'BORED'}</div>}
           </div>
         </>
@@ -642,6 +743,10 @@ const App = () => {
 
         .emo-stage { position: relative; transform: scale(${breathScale}); transition: transform 0.8s ease; }
         .emo-eye-container { margin: 0 calc(30px * var(--face-scale)); }
+
+        .pip-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; color: ${EMO_COLOR}; opacity: 0.6; }
+        .pip-icon-large { font-size: 4rem; animation: pulse 2s infinite ease-in-out; }
+        .pip-status-text { letter-spacing: 4px; font-weight: 900; font-size: 0.8rem; }
 
         .ui-controls { position: absolute; bottom: 35px; left: 35px; display: flex; gap: 22px; alignItems: center; z-index: 100; }
         @media (max-width: 600px) {
