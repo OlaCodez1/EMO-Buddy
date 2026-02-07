@@ -18,6 +18,12 @@ interface TranscriptLine {
   id: string;
 }
 
+interface ThoughtData {
+  type: 'text' | 'image' | 'video' | 'generated';
+  value: string; 
+  prompt?: string;
+}
+
 const EMO_COLOR = '#00f2ff';
 
 // --- Utility Functions ---
@@ -151,7 +157,7 @@ const EmoEye = React.memo(({
   };
 
   return (
-    <div style={{ margin: '0 30px', perspective: '800px', position: 'relative' }}>
+    <div className="emo-eye-container" style={{ perspective: '800px', position: 'relative' }}>
       {isListening && <div className="listening-ring" style={{ position: 'absolute', top: '-15%', left: '-15%', width: '130%', height: '130%', border: `2px solid ${EMO_COLOR}`, borderRadius: borderRadius, opacity: 0.3, animation: 'pulse-ring 1.2s infinite ease-out' }} />}
       <div style={eyeStyle}>
         <div style={{ position: 'absolute', top: '15%', left: '15%', width: '22%', height: '22%', background: 'rgba(255,255,255,0.6)', borderRadius: '5px', opacity: (blink || (activeExpression === 'wink' && !isLeft)) ? 0 : 1, transition: 'opacity 0.08s' }} />
@@ -217,9 +223,16 @@ const EmoFace = ({ status, lookOffset, intensity, expression, isStartled, custom
   if (eyeExp === 'sad') headTilt = -15;
 
   return (
-    <div className={status === 'idle' ? 'idle-wiggle' : ''}
-      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', animation: 'face-boot 1.4s cubic-bezier(0.34, 1.56, 0.64, 1)', transform: `translate3d(0, ${isStartled ? -22 : 0}px, 0) scale(${isStartled ? 1.1 : 1}) rotate(${headTilt}deg)`, transition: 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1.5)' }}>
-      <div style={{ display: 'flex' }}>
+    <div className={`emo-face-root ${status === 'idle' ? 'idle-wiggle' : ''}`}
+      style={{ 
+        display: 'flex', 
+        flexDirection: 'column', 
+        alignItems: 'center', 
+        animation: 'face-boot 1.4s cubic-bezier(0.34, 1.56, 0.64, 1)', 
+        transform: `translate3d(0, ${isStartled ? -22 : 0}px, 0) scale(calc(var(--face-scale) * ${isStartled ? 1.1 : 1})) rotate(${headTilt}deg)`, 
+        transition: 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1.5)' 
+      }}>
+      <div style={{ display: 'flex', gap: 'calc(60px * var(--face-scale))' }}>
         <EmoEye state={status} lookOffset={lookOffset} intensity={intensity} expression={eyeExp} isLeft={true} isStartled={isStartled} breathScale={breathScale} />
         <EmoEye state={status} lookOffset={lookOffset} intensity={intensity} expression={eyeExp} isLeft={false} isStartled={isStartled} breathScale={breathScale} />
       </div>
@@ -230,22 +243,44 @@ const EmoFace = ({ status, lookOffset, intensity, expression, isStartled, custom
 
 // --- Thought Components ---
 
-const ThoughtBubble = React.memo(({ thought, onReady }: any) => {
+const ThoughtBubble = React.memo(({ thought, onReady }: { thought: ThoughtData | null, onReady: () => void }) => {
   const [loading, setLoading] = useState(true);
-  useEffect(() => { if (thought?.type === 'image') setLoading(true); else if (thought) onReady(); }, [thought, onReady]);
+
+  useEffect(() => {
+    if (thought?.type === 'image' || thought?.type === 'generated') {
+      setLoading(true);
+    } else if (thought) {
+      onReady();
+    }
+  }, [thought, onReady]);
+
   if (!thought) return null;
 
   return (
     <div className="thought-container">
       <div className="thought-bubble">
         {thought.type === 'text' && <div className="thought-text-wrapper"><p className="thought-text">{thought.value}</p></div>}
-        {thought.type === 'image' && (
+        
+        {(thought.type === 'image' || thought.type === 'generated') && (
           <div className="thought-image-wrapper">
-            {loading && <div className="loader-inner" />}
-            <img src={`https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?auto=format&fit=crop&w=400&q=80&sig=${encodeURIComponent(thought.value)}`} alt="thought" className={`thought-image ${loading ? 'hidden' : 'visible'}`} onLoad={() => { setLoading(false); onReady(); }} onError={() => { setLoading(false); onReady(); }} />
+            {loading && (
+              <div className="generating-visual">
+                <div className="loader-inner" />
+                <div className="generating-text">PROCESSING...</div>
+                <div className="scanning-line" />
+              </div>
+            )}
+            <img 
+              src={thought.type === 'generated' ? `data:image/png;base64,${thought.value}` : `https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?auto=format&fit=crop&w=400&q=80&sig=${encodeURIComponent(thought.value)}`} 
+              alt="thought" 
+              className={`thought-image ${loading ? 'hidden' : 'visible'}`} 
+              onLoad={() => { setLoading(false); onReady(); }} 
+              onError={() => { setLoading(false); onReady(); }} 
+            />
             <div className="image-overlay" />
           </div>
         )}
+
         {thought.type === 'video' && <div className="thought-video-wrapper"><svg className="video-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={EMO_COLOR} strokeWidth="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><p className="video-link-text">Watch Video</p><a href={thought.value} target="_blank" rel="noopener noreferrer" className="video-overlay-link">.</a></div>}
       </div>
       <div className="thought-dot dot-1" /><div className="thought-dot dot-2" />
@@ -263,7 +298,7 @@ const App = () => {
   const [mousePos, setMousePos] = useState({ x: 0.5, y: 0.5 });
   const [error, setError] = useState<string | null>(null);
   const [isStartled, setIsStartled] = useState(false);
-  const [thought, setThought] = useState<any>(null);
+  const [thought, setThought] = useState<ThoughtData | null>(null);
   const [breathScale, setBreathScale] = useState(1);
   const [boredom, setBoredom] = useState(0);
   const [hoveringUI, setHoveringUI] = useState(false);
@@ -322,8 +357,9 @@ const App = () => {
         setIntensity(0);
       }
       
-      const rangeX = hoveringUI ? 65 : 38;
-      const rangeY = hoveringUI ? 50 : 28;
+      const isSmallScreen = window.innerWidth < 768;
+      const rangeX = hoveringUI ? (isSmallScreen ? 40 : 65) : 38;
+      const rangeY = hoveringUI ? (isSmallScreen ? 30 : 50) : 28;
       const targetX = (mousePos.x - 0.5) * rangeX;
       const targetY = (mousePos.y - 0.5) * rangeY;
       
@@ -339,8 +375,14 @@ const App = () => {
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => setMousePos({ x: e.clientX / window.innerWidth, y: e.clientY / window.innerHeight });
+    const handleTouchMove = (e: TouchEvent) => setMousePos({ x: e.touches[0].clientX / window.innerWidth, y: e.touches[0].clientY / window.innerHeight });
+    
     window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
+    window.addEventListener('touchmove', handleTouchMove);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('touchmove', handleTouchMove);
+    };
   }, []);
 
   const saveCustomMood = useCallback((mood: CustomExpression) => {
@@ -349,21 +391,13 @@ const App = () => {
     localStorage.setItem('emo_custom_moods', JSON.stringify(updated));
   }, [customExpressions]);
 
-  // Handle browser tools: whatsapp, gmail, search
   const handleBrowserAction = (action: string, query?: string) => {
     let url = '';
     switch (action) {
-      case 'whatsapp':
-        url = 'https://web.whatsapp.com/';
-        break;
-      case 'gmail':
-        url = 'https://mail.google.com/';
-        break;
-      case 'search':
-        url = `https://www.google.com/search?q=${encodeURIComponent(query || '')}`;
-        break;
-      default:
-        return 'Action not supported';
+      case 'whatsapp': url = 'https://web.whatsapp.com/'; break;
+      case 'gmail': url = 'https://mail.google.com/'; break;
+      case 'search': url = `https://www.google.com/search?q=${encodeURIComponent(query || '')}`; break;
+      default: return 'Action not supported';
     }
     window.open(url, '_blank');
     return `Successfully opened ${action}`;
@@ -379,7 +413,7 @@ const App = () => {
       const inputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
       const outputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       const analyser = outputCtx.createAnalyser();
-      analyser.fftSize = 128; // Smaller FFT for better performance
+      analyser.fftSize = 128; 
       analyser.connect(outputCtx.destination);
       
       if (inputCtx.state === 'suspended') await inputCtx.resume();
@@ -448,6 +482,26 @@ const App = () => {
                 else if (fc.name === 'display_thought') {
                   setThought({ type: fc.args.type as any, value: fc.args.content as string });
                   setTimeout(() => setThought((prev: any) => prev?.value === fc.args.content ? null : prev), 15000);
+                } else if (fc.name === 'generate_image') {
+                    const prompt = fc.args.prompt as string;
+                    setThought({ type: 'generated', value: '', prompt }); 
+                    (async () => {
+                      try {
+                        const imageAi = new GoogleGenAI({ apiKey: process.env.API_KEY });
+                        const response = await imageAi.models.generateContent({
+                          model: 'gemini-2.5-flash-image',
+                          contents: { parts: [{ text: prompt }] },
+                        });
+                        let base64 = '';
+                        for (const part of response.candidates?.[0]?.content?.parts || []) {
+                          if (part.inlineData) { base64 = part.inlineData.data; break; }
+                        }
+                        if (base64) {
+                          setThought({ type: 'generated', value: base64, prompt });
+                          setTimeout(() => setThought(prev => prev?.value === base64 ? null : prev), 30000);
+                        } else { setThought(null); }
+                      } catch (err) { setThought(null); }
+                    })();
                 } else if (fc.name === 'open_browser_action') {
                   const result = handleBrowserAction(fc.args.action as string, fc.args.query as string);
                   sessionPromise.then(s => s.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result } } } as any));
@@ -494,7 +548,8 @@ const App = () => {
           outputAudioTranscription: {},
           tools: [{ functionDeclarations: [
             { name: 'set_expression', parameters: { type: Type.OBJECT, description: 'Change EMO’s expression.', properties: { expression: { type: Type.STRING, description: `Expression: ${moodNames.join(', ')}` } }, required: ['expression'] } },
-            { name: 'display_thought', parameters: { type: Type.OBJECT, description: 'Display a visual thought.', properties: { type: { type: Type.STRING, enum: ['text', 'image', 'video'] }, content: { type: Type.STRING } }, required: ['type', 'content'] } },
+            { name: 'display_thought', parameters: { type: Type.OBJECT, description: 'Display a quick visual thought from library.', properties: { type: { type: Type.STRING, enum: ['text', 'image', 'video'] }, content: { type: Type.STRING } }, required: ['type', 'content'] } },
+            { name: 'generate_image', parameters: { type: Type.OBJECT, description: 'Generate a unique, new image from a text description.', properties: { prompt: { type: Type.STRING, description: 'A detailed description of the image to generate.' } }, required: ['prompt'] } },
             { name: 'open_browser_action', parameters: { type: Type.OBJECT, description: 'Open apps or search.', properties: { action: { type: Type.STRING, enum: ['whatsapp', 'gmail', 'search'] }, query: { type: Type.STRING } }, required: ['action'] } }
           ] }, { googleSearch: {} }],
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } } },
@@ -504,7 +559,8 @@ const App = () => {
           
           BEHAVIOR:
           - Use 'set_expression' for every reaction.
-          - Use 'display_thought' to share mental visuals.
+          - Use 'generate_image' (~30% of visual ideas).
+          - Use 'display_thought' for quick references.
           - Audio response only.
           
           EXPRESSIONS: ${moodNames.join(', ')}.`
@@ -521,15 +577,15 @@ const App = () => {
     <div style={{ width: '100vw', height: '100vh', backgroundColor: '#0c0c0e', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }} onClick={!isActive && !isConnecting ? startEmo : undefined}>
       
       {!isActive && (
-        <div style={{ color: EMO_COLOR, textAlign: 'center', animation: isConnecting ? 'pulse 1s infinite' : 'flicker 2.5s infinite' }}>
-          <h1 style={{ fontSize: '5.5rem', fontWeight: 900, letterSpacing: '1.2rem', margin: '0', textShadow: `0 0 35px ${EMO_COLOR}70` }}>{isConnecting ? 'BOOTING' : 'EMO'}</h1>
-          <p style={{ opacity: 0.8, fontSize: '1.2rem', letterSpacing: '0.6rem', fontWeight: 300, marginTop: '25px' }}>{error || (isConnecting ? 'INITIATING...' : 'TAP TO WAKE')}</p>
+        <div style={{ color: EMO_COLOR, textAlign: 'center', animation: isConnecting ? 'pulse 1s infinite' : 'flicker 2.5s infinite', padding: '20px' }}>
+          <h1 className="boot-title">{isConnecting ? 'BOOTING' : 'EMO'}</h1>
+          <p className="boot-subtitle">{error || (isConnecting ? 'INITIATING...' : 'TAP TO WAKE')}</p>
         </div>
       )}
 
       {isActive && (
         <>
-          <div style={{ position: 'relative', transform: `scale(${breathScale})`, transition: 'transform 0.8s ease' }}>
+          <div className="emo-stage">
             <ThoughtBubble thought={thought} onReady={() => {}} />
             <EmoFace status={status} lookOffset={springPosRef.current} intensity={intensity} expression={expression} isStartled={isStartled} customMap={customExpressions} breathScale={breathScale} boredom={boredom} />
           </div>
@@ -543,7 +599,7 @@ const App = () => {
             </div>
           )}
 
-          <div style={{ position: 'absolute', bottom: '35px', left: '35px', display: 'flex', gap: '22px', alignItems: 'center' }} onMouseEnter={() => setHoveringUI(true)} onMouseLeave={() => setHoveringUI(false)}>
+          <div className="ui-controls" onMouseEnter={() => setHoveringUI(true)} onMouseLeave={() => setHoveringUI(false)}>
             <button onClick={(e) => { e.stopPropagation(); setShowLab(true); }} className="ui-button">MOOD LAB</button>
             <button onClick={(e) => { e.stopPropagation(); setShowCaptions(!showCaptions); }} className={`ui-button ${showCaptions ? 'active' : ''}`}>CAPTIONS</button>
             {boredom > 30 && <div className="boredom-indicator">{boredom > 80 ? 'SLEEPY...' : 'BORED'}</div>}
@@ -555,21 +611,56 @@ const App = () => {
       <div className="floor-glow" />
 
       <style>{`
+        :root {
+          --face-scale: 1;
+          --emo-color: ${EMO_COLOR};
+        }
+
+        @media (max-width: 768px) {
+          :root { --face-scale: 0.8; }
+        }
+        @media (max-width: 480px) {
+          :root { --face-scale: 0.65; }
+        }
+
         @keyframes flicker { 0%, 18%, 22%, 62%, 64%, 65%, 70%, 100% { opacity: 1; } 20%, 63%, 66% { opacity: 0.5; } }
         @keyframes pulse { 0% { opacity: 0.5; transform: scale(0.99); } 50% { opacity: 1; transform: scale(1); } 100% { opacity: 0.5; transform: scale(0.99); } }
-        @keyframes face-boot { from { opacity: 0; transform: translate3d(0, 60px, 0) scale(0.7); } to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); } }
+        @keyframes face-boot { from { opacity: 0; transform: translate3d(0, 60px, 0) scale(0.7); } to { opacity: 1; transform: translate3d(0, 0, 0) scale(var(--face-scale)); } }
         @keyframes idle-wiggle { 0%, 100% { transform: translate3d(0,0,0) rotate(0); } 40% { transform: translate3d(0, -4px, 0) rotate(0.4deg); } 80% { transform: translate3d(0, 3px, 0) rotate(-0.4deg); } }
         @keyframes thought-pop { 0% { transform: scale(0) translate3d(0,0,0); opacity: 0; } 75% { transform: scale(1.1) translate3d(200px, -230px, 0); } 100% { transform: scale(1) translate3d(200px, -230px, 0); opacity: 1; } }
+        @keyframes thought-pop-mobile { 0% { transform: scale(0) translate3d(-50%, 0, 0); opacity: 0; } 75% { transform: scale(1.1) translate3d(-50%, -240px, 0); } 100% { transform: scale(1) translate3d(-50%, -240px, 0); opacity: 1; } }
         @keyframes dot-pop { 0% { transform: scale(0); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
         @keyframes pulse-ring { 0% { transform: scale(0.95); opacity: 0.5; } 100% { transform: scale(1.35); opacity: 0; } }
+        @keyframes scan { 0% { top: -10%; } 100% { top: 110%; } }
 
-        .ui-button { background: rgba(0,0,0,0.65); border: 1px solid ${EMO_COLOR}40; color: ${EMO_COLOR}; padding: 14px 28px; border-radius: 18px; cursor: pointer; backdrop-filter: blur(18px); z-index: 100; font-size: 0.85rem; letter-spacing: 2px; font-weight: 800; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); outline: none; box-shadow: 0 6px 20px rgba(0,0,0,0.5); text-transform: uppercase; }
+        .boot-title { font-size: 5.5rem; font-weight: 900; letter-spacing: 1.2rem; margin: 0; text-shadow: 0 0 35px ${EMO_COLOR}70; }
+        .boot-subtitle { opacity: 0.8; font-size: 1.2rem; letter-spacing: 0.6rem; font-weight: 300; marginTop: 25px; }
+        @media (max-width: 600px) {
+          .boot-title { font-size: 3.5rem; letter-spacing: 0.5rem; }
+          .boot-subtitle { font-size: 0.9rem; letter-spacing: 0.3rem; }
+        }
+
+        .emo-stage { position: relative; transform: scale(${breathScale}); transition: transform 0.8s ease; }
+        .emo-eye-container { margin: 0 calc(30px * var(--face-scale)); }
+
+        .ui-controls { position: absolute; bottom: 35px; left: 35px; display: flex; gap: 22px; alignItems: center; z-index: 100; }
+        @media (max-width: 600px) {
+          .ui-controls { bottom: 20px; left: 0; right: 0; justify-content: center; gap: 10px; padding: 0 10px; }
+        }
+
+        .ui-button { background: rgba(0,0,0,0.65); border: 1px solid ${EMO_COLOR}40; color: ${EMO_COLOR}; padding: 14px 28px; border-radius: 18px; cursor: pointer; backdrop-filter: blur(18px); font-size: 0.85rem; letter-spacing: 2px; font-weight: 800; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); outline: none; box-shadow: 0 6px 20px rgba(0,0,0,0.5); text-transform: uppercase; }
         .ui-button:hover { background: ${EMO_COLOR}25; border-color: ${EMO_COLOR}; box-shadow: 0 0 25px ${EMO_COLOR}50; transform: translate3d(0, -3px, 0); }
         .ui-button.active { background: ${EMO_COLOR}; color: #000; border-color: #fff; }
+        @media (max-width: 600px) {
+          .ui-button { padding: 10px 18px; font-size: 0.7rem; border-radius: 12px; }
+        }
         
         .boredom-indicator { color: ${EMO_COLOR}; font-size: 0.7rem; font-weight: 900; letter-spacing: 4px; opacity: 0.5; border: 1px solid ${EMO_COLOR}30; padding: 7px 15px; border-radius: 25px; text-transform: uppercase; }
 
         .captions-overlay { position: absolute; top: 35px; right: 35px; width: 340px; max-height: 45vh; overflow-y: auto; background: rgba(0, 0, 0, 0.45); backdrop-filter: blur(15px); border: 1px solid ${EMO_COLOR}25; border-radius: 22px; padding: 22px; display: flex; flex-direction: column; gap: 14px; scrollbar-width: none; z-index: 90; box-shadow: 0 12px 40px rgba(0,0,0,0.6); }
+        @media (max-width: 768px) {
+          .captions-overlay { top: 0; right: 0; left: 0; width: 100%; max-height: 120px; border-radius: 0; border-top: none; border-left: none; border-right: none; }
+        }
         .captions-overlay::-webkit-scrollbar { display: none; }
         .transcript-line { font-family: 'SF Mono', 'Courier New', Courier, monospace; font-size: 0.9rem; line-height: 1.5; color: #fff; opacity: 0.95; will-change: transform; }
         .transcript-line.emo { color: ${EMO_COLOR}; }
@@ -577,26 +668,46 @@ const App = () => {
 
         .floor-glow { position: fixed; bottom: 0; width: 100%; height: 50vh; background: radial-gradient(circle at 50% 135%, ${EMO_COLOR}18, transparent 70%); pointer-events: none; }
 
-        .thought-container { position: absolute; z-index: 50; pointer-events: none; }
+        .thought-container { position: absolute; z-index: 50; pointer-events: none; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 0; height: 0; }
         .thought-bubble { position: absolute; width: 250px; min-height: 160px; background: rgba(8, 8, 10, 0.98); border: 5px solid ${EMO_COLOR}; border-radius: 38px; display: flex; align-items: center; justify-content: center; animation: thought-pop 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; overflow: hidden; padding: 12px; box-shadow: 0 0 35px ${EMO_COLOR}40; will-change: transform; }
-        .thought-image-wrapper { width: 100%; height: 140px; border-radius: 22px; overflow: hidden; background: #000; display: flex; align-items: center; justify-content: center; }
+        @media (max-width: 600px) {
+          .thought-bubble { animation: thought-pop-mobile 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; width: 200px; min-height: 130px; }
+        }
+
+        .thought-image-wrapper { width: 100%; height: 140px; border-radius: 22px; overflow: hidden; background: #000; display: flex; align-items: center; justify-content: center; position: relative; }
+        @media (max-width: 600px) { .thought-image-wrapper { height: 110px; } }
+        
         .thought-image { width: 100%; height: 100%; object-fit: cover; transition: opacity 0.6s; }
         .hidden { opacity: 0; }
         .visible { opacity: 1; }
 
+        .generating-visual { display: flex; flex-direction: column; align-items: center; gap: 15px; position: relative; z-index: 10; }
+        .generating-text { color: ${EMO_COLOR}; font-size: 0.7rem; font-weight: 900; letter-spacing: 2px; }
+        .scanning-line { position: absolute; left: 0; width: 100%; height: 2px; background: ${EMO_COLOR}; box-shadow: 0 0 10px ${EMO_COLOR}; animation: scan 2s linear infinite; pointer-events: none; }
+        .loader-inner { width: 30px; height: 30px; border: 3px solid ${EMO_COLOR}20; border-top-color: ${EMO_COLOR}; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
         .thought-text { color: ${EMO_COLOR}; font-family: sans-serif; font-weight: 800; text-align: center; text-transform: uppercase; text-shadow: 0 0 15px ${EMO_COLOR}90; letter-spacing: 2px; }
         .thought-dot { position: absolute; background: transparent; border: 3px solid ${EMO_COLOR}; border-radius: 50%; opacity: 0; }
+        
         .dot-1 { width: 22px; height: 22px; left: 70px; top: -55px; animation: dot-pop 0.4s 0.25s forwards; }
         .dot-2 { width: 38px; height: 38px; left: 120px; top: -115px; animation: dot-pop 0.4s 0.45s forwards; }
+        @media (max-width: 600px) {
+          .dot-1 { left: -10px; top: -100px; }
+          .dot-2 { left: -30px; top: -160px; }
+        }
 
-        .lab-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.92); backdrop-filter: blur(30px); display: flex; align-items: center; justify-content: center; z-index: 2000; color: #fff; }
-        .lab-content { background: #111113; border: 1px solid ${EMO_COLOR}25; border-radius: 35px; padding: 50px; width: 92%; max-width: 680px; max-height: 90vh; overflow-y: auto; scrollbar-width: none; }
+        .lab-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.92); backdrop-filter: blur(30px); display: flex; align-items: center; justify-content: center; z-index: 2000; color: #fff; padding: 15px; }
+        .lab-content { background: #111113; border: 1px solid ${EMO_COLOR}25; border-radius: 35px; padding: 40px; width: 100%; max-width: 680px; max-height: 90vh; overflow-y: auto; scrollbar-width: none; }
+        @media (max-width: 600px) { .lab-content { padding: 25px; border-radius: 20px; } }
+        
         .lab-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin: 30px 0; }
+        @media (max-width: 600px) { .lab-grid { grid-template-columns: 1fr; gap: 15px; } }
+
         .lab-input { background: #050507; border: 1px solid ${EMO_COLOR}35; color: #fff; padding: 16px; border-radius: 14px; width: 100%; box-sizing: border-box; font-family: inherit; font-size: 1.05rem; outline: none; transition: border-color 0.2s; }
-        .lab-input:focus { border-color: ${EMO_COLOR}; }
         .lab-select { background: #050507; border: 1px solid ${EMO_COLOR}35; color: #fff; padding: 14px; border-radius: 14px; width: 100%; cursor: pointer; outline: none; }
         .lab-btn { background: ${EMO_COLOR}; color: #000; font-weight: 900; border: none; padding: 16px 35px; border-radius: 18px; cursor: pointer; transition: transform 0.2s, opacity 0.2s; letter-spacing: 1.5px; }
-        .lab-btn:hover { opacity: 0.9; transform: translate3d(0, -2px, 0); }
+        @media (max-width: 480px) { .lab-btn { width: 100%; margin-bottom: 10px; } }
       `}</style>
     </div>
   );
@@ -634,7 +745,7 @@ const MoodLab = React.memo(({ onClose, onSave, existing }: any) => {
           </div>
         </div>
 
-        <div style={{ marginTop: '60px', display: 'flex', justifyContent: 'flex-end' }}>
+        <div style={{ marginTop: '60px', display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <button className="lab-btn" style={{ background: 'transparent', color: EMO_COLOR, border: `1px solid ${EMO_COLOR}40`, marginRight: '15px' }} onClick={onClose}>DISCARD</button>
           <button className="lab-btn" onClick={() => { if (!name) return alert("Identify your mood!"); onSave({ name, eyeBase: eye, mouthBase: mouth }); onClose(); }}>STORE MOOD</button>
         </div>
