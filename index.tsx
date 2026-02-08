@@ -6,6 +6,12 @@ import { GoogleGenAI, LiveServerMessage, Modality, Blob, Type } from '@google/ge
 // --- Types ---
 type Expression = 'neutral' | 'happy' | 'surprised' | 'angry' | 'curious' | 'sleepy' | 'wink' | 'skeptical' | 'sad' | 'excited' | 'thinking' | 'annoyed' | 'thoughtful' | 'yawn' | 'distracted';
 
+interface Sticker {
+  icon: string;
+  position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  id: string;
+}
+
 interface CustomExpression {
   name: string;
   eyeBase: Expression;
@@ -13,7 +19,7 @@ interface CustomExpression {
 }
 
 interface TranscriptLine {
-  sender: 'YOU' | 'EMO';
+  sender: 'YOU' | 'NEO';
   text: string;
   id: string;
 }
@@ -25,27 +31,31 @@ interface ThoughtData {
   timestamp: number;
 }
 
+interface VoiceSettings {
+  noiseThreshold: number;
+}
+
 // --- Dynamic Color Mapping ---
 const getMoodColor = (exp: string): string => {
   switch (exp) {
     case 'angry':
     case 'annoyed':
-      return '#ff3333'; // Deep Red
+      return '#ff3333';
     case 'happy':
     case 'excited':
-      return '#ffea00'; // Neon Gold
+      return '#ffea00';
     case 'sad':
-      return '#3366ff'; // Electric Blue
+      return '#3366ff';
     case 'thinking':
     case 'thoughtful':
     case 'curious':
-      return '#bc13fe'; // Cyber Purple
+      return '#bc13fe';
     case 'sleepy':
-      return '#a0a0a0'; // Stealth Grey
+      return '#a0a0a0';
     case 'surprised':
-      return '#ff8c00'; // Warning Orange
+      return '#ff8c00';
     default:
-      return '#00f2ff'; // Core Cyan
+      return '#00f2ff';
   }
 };
 
@@ -110,7 +120,8 @@ const EmoEye = React.memo(({
   isLeft,
   isStartled,
   breathScale,
-  color
+  color,
+  stickers
 }: { 
   state: string, 
   lookOffset: { x: number, y: number },
@@ -119,7 +130,8 @@ const EmoEye = React.memo(({
   isLeft: boolean,
   isStartled: boolean,
   breathScale: number,
-  color: string
+  color: string,
+  stickers: Sticker[]
 }) => {
   const [blink, setBlink] = useState(false);
   
@@ -136,7 +148,7 @@ const EmoEye = React.memo(({
     return () => clearTimeout(timeout);
   }, [expression, isStartled]);
 
-  let width = 72, height = 72, borderRadius = '22px', rotate = 0, scaleY = (blink && !isStartled) ? 0.05 : 1, translateY = 0;
+  let width = 90, height = 90, borderRadius = '30%', rotate = 0, scaleY = (blink && !isStartled) ? 0.05 : 1, translateY = 0;
   let activeExpression = isStartled ? 'surprised' : expression;
   const isListening = state === 'listening';
   
@@ -144,94 +156,131 @@ const EmoEye = React.memo(({
   if (state === 'thinking' && activeExpression === 'neutral') activeExpression = 'thinking';
 
   switch (activeExpression) {
-    case 'happy': rotate = isLeft ? 15 : -15; borderRadius = '40px 40px 18px 18px'; translateY = -6; break;
-    case 'surprised': width = 82; height = 82; borderRadius = '50%'; break;
-    case 'angry': rotate = isLeft ? -25 : 25; height = 40; borderRadius = '10px 10px 45px 45px'; break;
-    case 'sleepy': scaleY = 0.22; height = 28; borderRadius = '50%'; break;
-    case 'curious': rotate = isLeft ? -12 : 10; height = isLeft ? 60 : 78; break;
-    case 'wink': if (!isLeft) scaleY = 0.05; else { rotate = 15; borderRadius = '42px 42px 18px 18px'; } break;
-    case 'skeptical': rotate = isLeft ? -18 : 0; translateY = isLeft ? -14 : 0; height = isLeft ? 78 : 42; break;
-    case 'sad': rotate = isLeft ? -22 : 22; borderRadius = '18px 18px 42px 42px'; translateY = 14; break;
-    case 'excited': width = 88; height = 62; borderRadius = '28px'; break;
-    case 'thinking': rotate = isLeft ? 12 : -12; height = 48; width = 78; break;
-    case 'annoyed': height = 38; borderRadius = '12px 12px 42px 42px'; rotate = isLeft ? -12 : 12; break;
-    case 'thoughtful': rotate = isLeft ? -22 : -12; height = isLeft ? 68 : 58; borderRadius = '45% 45% 22% 22%'; translateY = -10; break;
-    case 'yawn': scaleY = 0.28; translateY = -12; break;
-    case 'distracted': rotate = isLeft ? 6 : 18; translateY = 6; break;
+    case 'happy': rotate = isLeft ? 15 : -15; borderRadius = '45% 45% 20% 20%'; translateY = -8; break;
+    case 'surprised': width = 100; height = 100; borderRadius = '50%'; break;
+    case 'angry': rotate = isLeft ? -25 : 25; height = 50; borderRadius = '10px 10px 60px 60px'; break;
+    case 'sleepy': scaleY = 0.22; height = 35; borderRadius = '50%'; break;
+    case 'curious': rotate = isLeft ? -12 : 10; height = isLeft ? 80 : 100; break;
+    case 'wink': if (!isLeft) scaleY = 0.05; else { rotate = 15; borderRadius = '50% 50% 25% 25%'; } break;
+    case 'skeptical': rotate = isLeft ? -18 : 0; translateY = isLeft ? -14 : 0; height = isLeft ? 100 : 55; break;
+    case 'sad': rotate = isLeft ? -22 : 22; borderRadius = '20% 20% 50% 50%'; translateY = 18; break;
+    case 'excited': width = 110; height = 80; borderRadius = '35%'; break;
+    case 'thinking': rotate = isLeft ? 12 : -12; height = 65; width = 100; break;
+    case 'annoyed': height = 50; borderRadius = '15px 15px 50px 50px'; rotate = isLeft ? -12 : 12; break;
+    case 'thoughtful': rotate = isLeft ? -22 : -12; height = isLeft ? 85 : 75; borderRadius = '50% 50% 30% 30%'; translateY = -12; break;
+    case 'yawn': scaleY = 0.28; translateY = -15; break;
+    case 'distracted': rotate = isLeft ? 6 : 18; translateY = 8; break;
   }
 
-  if (isListening) { width += 10; height += 4; }
-
-  const voiceScale = state === 'speaking' ? 1 + intensity * 0.4 : 1;
-  const startleScale = isStartled ? 1.18 : 1;
-  const stateGlow = isListening ? (28 + Math.sin(Date.now() / 150) * 18) : (state === 'speaking' ? 12 + intensity * 40 : 22);
-
-  const eyeStyle: React.CSSProperties = {
-    width: `${width}px`,
-    height: `${height}px`,
-    backgroundColor: color,
-    borderRadius: borderRadius,
-    boxShadow: `0 0 ${stateGlow}px ${color}B3, inset 0 0 18px rgba(255, 255, 255, 0.45)`,
-    transition: isStartled ? 'all 0.05s ease-out' : 'all 0.22s cubic-bezier(0.19, 1, 0.22, 1), background-color 0.8s ease',
-    transform: `translate3d(${lookOffset.x}px, ${lookOffset.y + translateY}px, 0) scaleY(${scaleY}) rotate(${rotate}deg) scale(${voiceScale * startleScale * breathScale})`,
-    position: 'relative',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    willChange: 'transform, box-shadow'
-  };
+  const voiceScale = state === 'speaking' ? 1 + intensity * 0.45 : 1;
+  const startleScale = isStartled ? 1.25 : 1;
+  const glowIntensity = isListening ? (40 + Math.sin(Date.now() / 150) * 25) : (state === 'speaking' ? 20 + intensity * 60 : 30);
 
   return (
     <div className="emo-eye-container" style={{ perspective: '800px', position: 'relative' }}>
-      {isListening && <div className="listening-ring" style={{ position: 'absolute', top: '-15%', left: '-15%', width: '130%', height: '130%', border: `2px solid ${color}`, borderRadius: borderRadius, opacity: 0.3, animation: 'pulse-ring 1.2s infinite ease-out' }} />}
-      <div style={eyeStyle}>
-        <div style={{ position: 'absolute', top: '15%', left: '15%', width: '22%', height: '22%', background: 'rgba(255,255,255,0.6)', borderRadius: '5px', opacity: (blink || (activeExpression === 'wink' && !isLeft)) ? 0 : 1, transition: 'opacity 0.08s' }} />
+      {isListening && <div className="listening-ring" style={{ position: 'absolute', top: '-20%', left: '-20%', width: '140%', height: '140%', border: `4px solid ${color}`, borderRadius: borderRadius, opacity: 0.4, animation: 'pulse-ring 1.5s infinite ease-out' }} />}
+      
+      {stickers.map(s => (
+        <div key={s.id} className={`sticker ${s.position}`} style={{ 
+          position: 'absolute', 
+          fontSize: '2rem', 
+          zIndex: 10,
+          animation: 'sticker-pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
+          left: s.position.includes('left') ? '-30%' : 'auto',
+          right: s.position.includes('right') ? '-30%' : 'auto',
+          top: s.position.includes('top') ? '-30%' : 'auto',
+          bottom: s.position.includes('bottom') ? '-30%' : 'auto',
+          pointerEvents: 'none'
+        }}>
+          {s.icon}
+        </div>
+      ))}
+
+      <div className="emo-eye" style={{
+        width: `${width}px`,
+        height: `${height}px`,
+        backgroundColor: color,
+        borderRadius: borderRadius,
+        boxShadow: `0 0 ${glowIntensity}px ${color}B3, inset 0 0 25px rgba(255, 255, 255, 0.55)`,
+        transition: isStartled ? 'all 0.05s ease-out' : 'all 0.25s cubic-bezier(0.19, 1, 0.22, 1), background-color 0.8s ease',
+        transform: `translate3d(${lookOffset.x}px, ${lookOffset.y + translateY}px, 0) scaleY(${scaleY}) rotate(${rotate}deg) scale(${voiceScale * startleScale * breathScale})`,
+        position: 'relative',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        willChange: 'transform, box-shadow'
+      }}>
+        <div className="eye-shine" style={{ 
+          position: 'absolute', 
+          top: '12%', 
+          left: '12%', 
+          width: '28%', 
+          height: '28%', 
+          background: 'rgba(255,255,255,0.75)', 
+          borderRadius: '35%', 
+          opacity: (blink || (activeExpression === 'wink' && !isLeft)) ? 0 : 1, 
+          transition: 'opacity 0.1s' 
+        }} />
       </div>
     </div>
   );
 });
 
 const EmoMouth = React.memo(({ state, lookOffset, intensity, expression, isStartled, breathScale, color }: { state: string, lookOffset: { x: number, y: number }, intensity: number, expression: Expression, isStartled: boolean, breathScale: number, color: string }) => {
-  let width = 38, height = 8, borderRadius = '7px', rotate = 0;
-  const mouthX = lookOffset.x * 0.48, mouthY = lookOffset.y * 0.38;
+  let width = 45, height = 10, borderRadius = '10px', rotate = 0;
+  const mouthX = lookOffset.x * 0.45, mouthY = lookOffset.y * 0.35;
   let activeExpression = isStartled ? 'surprised' : expression;
 
   if (state === 'speaking') {
-    width = 22 + intensity * 28;
-    height = 8 + intensity * 48;
-    borderRadius = intensity > 0.3 ? '50%' : '15px';
+    width = 30 + intensity * 35;
+    height = 10 + intensity * 55;
+    borderRadius = intensity > 0.3 ? '50%' : '20px';
   } else {
     switch (activeExpression) {
-      case 'happy': width = 52; height = 16; borderRadius = '0 0 32px 32px'; break;
-      case 'surprised': width = 28; height = 28; borderRadius = '50%'; break;
-      case 'angry': width = 38; height = 6; rotate = -6; break;
-      case 'sad': width = 48; height = 13; borderRadius = '28px 28px 0 0'; break;
-      case 'skeptical': width = 32; height = 7; rotate = 18; break;
-      case 'excited': width = 65; height = 22; borderRadius = '12px 12px 42px 42px'; break;
-      case 'sleepy': width = 18; height = 18; borderRadius = '50%'; break;
-      case 'wink': width = 42; height = 12; borderRadius = '0 0 22px 22px'; rotate = -6; break;
-      case 'annoyed': width = 32; height = 4; break;
-      case 'thoughtful': width = 18; height = 18; borderRadius = '50%'; break;
-      case 'yawn': width = 20; height = 35; borderRadius = '50%'; break;
+      case 'happy': width = 60; height = 20; borderRadius = '0 0 40px 40px'; break;
+      case 'surprised': width = 35; height = 35; borderRadius = '50%'; break;
+      case 'angry': width = 45; height = 8; rotate = -8; break;
+      case 'sad': width = 55; height = 15; borderRadius = '35px 35px 0 0'; break;
+      case 'skeptical': width = 40; height = 9; rotate = 22; break;
+      case 'excited': width = 75; height = 28; borderRadius = '15px 15px 50px 50px'; break;
+      case 'sleepy': width = 22; height = 22; borderRadius = '50%'; break;
+      case 'wink': width = 50; height = 15; borderRadius = '0 0 30px 30px'; rotate = -8; break;
+      case 'annoyed': width = 40; height = 6; break;
+      case 'thoughtful': width = 22; height = 22; borderRadius = '50%'; break;
+      case 'yawn': width = 25; height = 45; borderRadius = '50%'; break;
     }
   }
 
   return (
-    <div style={{
-      width: `${width}px`,
-      height: `${height}px`,
-      backgroundColor: color,
-      borderRadius: borderRadius,
-      boxShadow: `0 0 ${14 + intensity * 25}px ${color}80`,
-      marginTop: '48px',
-      transform: `translate3d(${mouthX}px, ${mouthY}px, 0) rotate(${rotate}deg) scale(${isStartled ? 1.2 : 1 * breathScale})`,
-      transition: 'all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), background-color 0.8s ease',
-      willChange: 'transform, width, height'
-    }} />
+    <div className="emo-mouth-container" style={{ position: 'relative', marginTop: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      {state === 'speaking' && (
+        <div className="voice-waves" style={{
+          position: 'absolute',
+          width: '200%',
+          height: '200%',
+          border: `3px solid ${color}`,
+          borderRadius: '50%',
+          opacity: 0.6 * intensity,
+          transform: `scale(${1 + intensity * 1.2})`,
+          transition: 'transform 0.05s ease-out',
+          boxShadow: `0 0 ${30 * intensity}px ${color}`
+        }} />
+      )}
+      <div className="emo-mouth" style={{
+        width: `${width}px`,
+        height: `${height}px`,
+        backgroundColor: color,
+        borderRadius: borderRadius,
+        boxShadow: `0 0 ${18 + intensity * 35}px ${color}99`,
+        transform: `translate3d(${mouthX}px, ${mouthY}px, 0) rotate(${rotate}deg) scale(${isStartled ? 1.3 : 1 * breathScale})`,
+        transition: 'all 0.28s cubic-bezier(0.175, 0.885, 0.32, 1.275), background-color 0.8s ease',
+        willChange: 'transform, width, height'
+      }} />
+    </div>
   );
 });
 
-const EmoFace = ({ status, lookOffset, intensity, expression, isStartled, customMap, breathScale, boredom, color }: any) => {
+const EmoFace = ({ status, lookOffset, intensity, expression, isStartled, customMap, breathScale, boredom, color, stickers }: any) => {
   const isCustom = customMap[expression];
   let eyeExp = isCustom ? isCustom.eyeBase : expression;
   let mouthExp = isCustom ? isCustom.mouthBase : expression;
@@ -242,10 +291,10 @@ const EmoFace = ({ status, lookOffset, intensity, expression, isStartled, custom
   }
 
   let headTilt = 0;
-  if (eyeExp === 'curious' || status === 'listening') headTilt = -8;
-  if (eyeExp === 'thoughtful' || status === 'thinking') headTilt = 5;
-  if (eyeExp === 'skeptical') headTilt = 12;
-  if (eyeExp === 'sad') headTilt = -15;
+  if (eyeExp === 'curious' || status === 'listening') headTilt = -10;
+  if (eyeExp === 'thoughtful' || status === 'thinking') headTilt = 8;
+  if (eyeExp === 'skeptical') headTilt = 15;
+  if (eyeExp === 'sad') headTilt = -18;
 
   return (
     <div className={`emo-face-root ${status === 'idle' ? 'idle-wiggle' : ''}`}
@@ -254,29 +303,31 @@ const EmoFace = ({ status, lookOffset, intensity, expression, isStartled, custom
         flexDirection: 'column', 
         alignItems: 'center', 
         animation: 'face-boot 1.4s cubic-bezier(0.34, 1.56, 0.64, 1)', 
-        transform: `translate3d(0, ${isStartled ? -22 : 0}px, 0) scale(calc(var(--face-scale) * ${isStartled ? 1.1 : 1})) rotate(${headTilt}deg)`, 
-        transition: 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1.5)' 
+        transform: `translate3d(0, ${isStartled ? -30 : 0}px, 0) scale(calc(var(--face-scale) * ${isStartled ? 1.15 : 1})) rotate(${headTilt}deg)`, 
+        transition: 'transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1.5)' 
       }}>
-      <div style={{ display: 'flex', gap: 'calc(60px * var(--face-scale))' }}>
-        <EmoEye state={status} lookOffset={lookOffset} intensity={intensity} expression={eyeExp} isLeft={true} isStartled={isStartled} breathScale={breathScale} color={color} />
-        <EmoEye state={status} lookOffset={lookOffset} intensity={intensity} expression={eyeExp} isLeft={false} isStartled={isStartled} breathScale={breathScale} color={color} />
+      <div className="emo-eyes-row" style={{ display: 'flex', gap: 'calc(80px * var(--face-scale))' }}>
+        <EmoEye state={status} lookOffset={lookOffset} intensity={intensity} expression={eyeExp} isLeft={true} isStartled={isStartled} breathScale={breathScale} color={color} stickers={stickers} />
+        <EmoEye state={status} lookOffset={lookOffset} intensity={intensity} expression={eyeExp} isLeft={false} isStartled={isStartled} breathScale={breathScale} color={color} stickers={stickers} />
       </div>
       <EmoMouth state={status} lookOffset={lookOffset} intensity={intensity} expression={mouthExp} isStartled={isStartled} breathScale={breathScale} color={color} />
     </div>
   );
 };
 
-// --- Neural Link (Thought Bubble) Components ---
+// --- Neural Link Components ---
 
 const NeuralLink = React.memo(({ 
   thought, 
   onReady, 
   onExpand,
+  onDismiss,
   color 
 }: { 
   thought: ThoughtData | null, 
   onReady: () => void, 
   onExpand: (t: ThoughtData) => void,
+  onDismiss: () => void,
   color: string 
 }) => {
   const [loading, setLoading] = useState(true);
@@ -293,11 +344,12 @@ const NeuralLink = React.memo(({
 
   const imageUrl = thought.type === 'generated' 
     ? `data:image/png;base64,${thought.value}` 
-    : `https://images.unsplash.com/photo-1514525253361-bee24383c87f?auto=format&fit=crop&q=80&w=400&fm=jpg&sig=${encodeURIComponent(thought.value || 'abstract')}`;
+    : `https://images.unsplash.com/photo-1514525253361-bee24383c87f?auto=format&fit=crop&w=400&fm=jpg&sig=${encodeURIComponent(thought.value || 'abstract')}`;
 
   return (
     <div className="thought-container">
       <div className="thought-bubble holographic" style={{ borderColor: color, boxShadow: `0 0 35px ${color}40` }} onClick={() => onExpand(thought)}>
+        <button className="dismiss-thought" onClick={(e) => { e.stopPropagation(); onDismiss(); }}>×</button>
         <div className="hologram-glitch-lines" style={{ background: `linear-gradient(transparent, ${color}20, transparent)` }} />
         
         {thought.type === 'text' && <div className="thought-text-wrapper"><p className="thought-text" style={{ color }}>{thought.value}</p></div>}
@@ -349,13 +401,14 @@ const NeuralLink = React.memo(({
   );
 });
 
-// --- App Component ---
+// --- Main App ---
 
 const App = () => {
   const [isActive, setIsActive] = useState(false);
   const [status, setStatus] = useState<'idle' | 'listening' | 'speaking' | 'thinking'>('idle');
   const [expression, setExpression] = useState<string>('neutral');
   const [intensity, setIntensity] = useState(0);
+  const [micLevel, setMicLevel] = useState(0); 
   const [mousePos, setMousePos] = useState({ x: 0.5, y: 0.5 });
   const [error, setError] = useState<string | null>(null);
   const [isStartled, setIsStartled] = useState(false);
@@ -371,6 +424,17 @@ const App = () => {
   const [transcriptionLines, setTranscriptionLines] = useState<TranscriptLine[]>([]);
   const [showLab, setShowLab] = useState(false);
   const [isPipActive, setIsPipActive] = useState(false);
+  const [stickers, setStickers] = useState<Sticker[]>([]);
+  const [aiCustomCss, setAiCustomCss] = useState('');
+  
+  // Vision states
+  const [isVisionActive, setIsVisionActive] = useState(false);
+  const [visionType, setVisionType] = useState<'camera' | 'screen' | null>(null);
+  
+  const [voiceSettings, setVoiceSettings] = useState<VoiceSettings>(() => {
+    const saved = localStorage.getItem('neo_settings_v4');
+    return saved ? JSON.parse(saved) : { noiseThreshold: 0.015 };
+  });
 
   const themeColor = useMemo(() => getMoodColor(expression), [expression]);
 
@@ -380,7 +444,6 @@ const App = () => {
   });
 
   const statusRef = useRef(status);
-  const boredomRef = useRef(boredom);
   const audioCtxRef = useRef<any>(null);
   const nextStartTimeRef = useRef(0);
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
@@ -390,10 +453,20 @@ const App = () => {
   const currentOutputTranscription = useRef('');
   const pipWindowRef = useRef<any>(null);
   const pipRootRef = useRef<any>(null);
+  const voiceSettingsRef = useRef(voiceSettings);
+  const vadActiveRef = useRef(0); 
+  const visionIntervalRef = useRef<number | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const sessionRef = useRef<any>(null);
+
+  useEffect(() => {
+    voiceSettingsRef.current = voiceSettings;
+    localStorage.setItem('neo_settings_v4', JSON.stringify(voiceSettings));
+  }, [voiceSettings]);
 
   useEffect(() => {
     statusRef.current = status;
-    if (status !== 'idle') { setBoredom(0); boredomRef.current = 0; }
+    if (status !== 'idle') setBoredom(0);
   }, [status]);
 
   useEffect(() => {
@@ -403,7 +476,7 @@ const App = () => {
   useEffect(() => {
     const interval = setInterval(() => {
       if (statusRef.current === 'idle') {
-        setBoredom(prev => { const next = Math.min(100, prev + 1); boredomRef.current = next; return next; });
+        setBoredom(prev => Math.min(100, prev + 1));
       }
     }, 3500);
     return () => clearInterval(interval);
@@ -423,19 +496,19 @@ const App = () => {
       if (audioCtxRef.current?.analyser && statusRef.current === 'speaking') {
         const dataArray = new Uint8Array(audioCtxRef.current.analyser.frequencyBinCount);
         audioCtxRef.current.analyser.getByteFrequencyData(dataArray);
-        const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+        const average = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
         setIntensity(average / 128); 
       } else {
         setIntensity(0);
       }
       
       const isSmallScreen = window.innerWidth < 768;
-      const rangeX = hoveringUI ? (isSmallScreen ? 40 : 65) : 38;
-      const rangeY = hoveringUI ? (isSmallScreen ? 30 : 50) : 28;
+      const rangeX = hoveringUI ? (isSmallScreen ? 50 : 80) : 45;
+      const rangeY = hoveringUI ? (isSmallScreen ? 40 : 60) : 35;
       const targetX = (mousePos.x - 0.5) * rangeX;
       const targetY = (mousePos.y - 0.5) * rangeY;
       
-      const springK = hoveringUI ? 0.25 : 0.09;
+      const springK = hoveringUI ? 0.22 : 0.08;
       springPosRef.current.x += (targetX - springPosRef.current.x) * springK;
       springPosRef.current.y += (targetY - springPosRef.current.y) * springK;
 
@@ -447,14 +520,76 @@ const App = () => {
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => setMousePos({ x: e.clientX / window.innerWidth, y: e.clientY / window.innerHeight });
-    const handleTouchMove = (e: TouchEvent) => setMousePos({ x: e.touches[0].clientX / window.innerWidth, y: e.touches[0].clientY / window.innerHeight });
     window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('touchmove', handleTouchMove);
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('touchmove', handleTouchMove);
-    };
+    return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
+
+  const stopAllAudio = useCallback(() => {
+    for (const s of sourcesRef.current) {
+      try { s.stop(); } catch(e) {}
+    }
+    sourcesRef.current.clear();
+    nextStartTimeRef.current = 0;
+    setStatus('idle');
+  }, []);
+
+  const stopVision = useCallback(() => {
+    if (visionIntervalRef.current) {
+      clearInterval(visionIntervalRef.current);
+      visionIntervalRef.current = null;
+    }
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach(track => track.stop());
+      videoRef.current.srcObject = null;
+    }
+    setIsVisionActive(false);
+    setVisionType(null);
+  }, []);
+
+  const startVision = useCallback(async (type: 'camera' | 'screen') => {
+    stopVision();
+    try {
+      let stream;
+      if (type === 'camera') {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+      } else {
+        stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      }
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+      }
+
+      setIsVisionActive(true);
+      setVisionType(type);
+
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+
+      visionIntervalRef.current = window.setInterval(() => {
+        if (!videoRef.current || !ctx || !sessionRef.current) return;
+        canvas.width = 320; 
+        canvas.height = 240;
+        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob((blob) => {
+          if (blob) {
+            blob.arrayBuffer().then((buffer) => {
+              const base64Data = encode(new Uint8Array(buffer));
+              sessionRef.current?.sendRealtimeInput({
+                media: { data: base64Data, mimeType: 'image/jpeg' }
+              });
+            });
+          }
+        }, 'image/jpeg', 0.5);
+      }, 1000); // 1 frame per second is enough for context and less bandwidth
+      return true;
+    } catch (err) {
+      console.error('Vision error:', err);
+      return false;
+    }
+  }, [stopVision]);
 
   const togglePip = async (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -469,13 +604,7 @@ const App = () => {
           const style = document.createElement('style');
           style.textContent = [...ss.cssRules].map((r) => r.cssText).join('');
           pipWindow.document.head.appendChild(style);
-        } catch (e) {
-          if (ss.href) {
-            const link = document.createElement('link');
-            link.rel = 'stylesheet'; link.href = ss.href;
-            pipWindow.document.head.appendChild(link);
-          }
-        }
+        } catch (e) {}
       });
       pipWindow.document.documentElement.style.setProperty('--emo-color', themeColor);
       pipWindow.document.body.style.backgroundColor = '#0c0c0e';
@@ -490,31 +619,13 @@ const App = () => {
   useEffect(() => {
     if (isPipActive && pipRootRef.current) {
       pipRootRef.current.render(
-        <div style={{ transform: `scale(${breathScale})`, display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
-          <EmoFace status={status} lookOffset={springPosRef.current} intensity={intensity} expression={expression} isStartled={isStartled} customMap={customExpressions} breathScale={breathScale} boredom={boredom} color={themeColor} />
+        <div style={{ transform: `scale(${breathScale})`, display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', position: 'relative' }}>
+          {aiCustomCss && <style>{aiCustomCss}</style>}
+          <EmoFace status={status} lookOffset={springPosRef.current} intensity={intensity} expression={expression} isStartled={isStartled} customMap={customExpressions} breathScale={breathScale} boredom={boredom} color={themeColor} stickers={stickers} />
         </div>
       );
     }
-  }, [isPipActive, status, expression, intensity, isStartled, customExpressions, breathScale, boredom, springPosRef.current, themeColor]);
-
-  const saveCustomMood = useCallback((mood: CustomExpression) => {
-    const updated = { ...customExpressions, [mood.name]: mood };
-    setCustomExpressions(updated);
-    localStorage.setItem('neo_custom_moods', JSON.stringify(updated));
-  }, [customExpressions]);
-
-  const handleBrowserAction = (action: string, query?: string) => {
-    let url = '';
-    switch (action) {
-      case 'whatsapp': url = 'https://web.whatsapp.com/'; break;
-      case 'gmail': url = 'https://mail.google.com/'; break;
-      case 'search': url = `https://www.google.com/search?q=${encodeURIComponent(query || '')}`; break;
-      case 'music': url = `https://music.youtube.com/search?q=${encodeURIComponent(query || '')}`; break;
-      default: return 'Action not supported';
-    }
-    window.open(url, '_blank');
-    return `Opened ${action}`;
-  };
+  }, [isPipActive, status, expression, intensity, isStartled, customExpressions, breathScale, boredom, springPosRef.current, themeColor, stickers, aiCustomCss]);
 
   const startEmo = async () => {
     if (isActive || isConnecting) return;
@@ -541,11 +652,21 @@ const App = () => {
             setTimeout(() => setExpression('neutral'), 1200);
             const source = inputCtx.createMediaStreamSource(stream);
             const scriptProcessor = inputCtx.createScriptProcessor(4096, 1, 1);
+            
             scriptProcessor.onaudioprocess = (e) => {
               const inputData = e.inputBuffer.getChannelData(0);
               const volume = inputData.reduce((a, b) => a + Math.abs(b), 0) / inputData.length;
-              if (volume > 0.005 && statusRef.current === 'idle') setStatus('listening');
-              sessionPromise.then(s => s.sendRealtimeInput({ media: createBlob(inputData) }));
+              setMicLevel(volume); 
+
+              if (volume > voiceSettingsRef.current.noiseThreshold) {
+                vadActiveRef.current = 5; 
+                if (statusRef.current === 'speaking') stopAllAudio();
+                if (statusRef.current === 'idle') setStatus('listening');
+                sessionRef.current?.sendRealtimeInput({ media: createBlob(inputData) });
+              } else if (vadActiveRef.current > 0) {
+                vadActiveRef.current--;
+                sessionRef.current?.sendRealtimeInput({ media: createBlob(inputData) });
+              }
             };
             source.connect(scriptProcessor); scriptProcessor.connect(inputCtx.destination);
           },
@@ -553,60 +674,49 @@ const App = () => {
             if (message.serverContent?.outputTranscription) {
               const text = message.serverContent.outputTranscription.text;
               currentOutputTranscription.current += text;
-              setTranscriptionLines(prev => {
-                const last = prev[prev.length - 1];
-                if (last?.sender === 'EMO') {
-                   const u = [...prev]; u[u.length - 1] = { ...last, text: currentOutputTranscription.current }; return u;
-                }
-                return [...prev, { sender: 'EMO', text: currentOutputTranscription.current, id: Date.now().toString() }];
-              });
             } else if (message.serverContent?.inputTranscription) {
               const text = message.serverContent.inputTranscription.text;
               currentInputTranscription.current += text;
-              setTranscriptionLines(prev => {
-                const last = prev[prev.length - 1];
-                if (last?.sender === 'YOU') {
-                   const u = [...prev]; u[u.length - 1] = { ...last, text: currentInputTranscription.current }; return u;
-                }
-                return [...prev, { sender: 'YOU', text: currentInputTranscription.current, id: Date.now().toString() }];
-              });
             }
-            if (message.serverContent?.turnComplete) { currentInputTranscription.current = ''; currentOutputTranscription.current = ''; }
+            
             if (message.toolCall) {
               for (const fc of message.toolCall.functionCalls) {
                 if (fc.name === 'set_expression') setExpression(fc.args.expression as string);
+                else if (fc.name === 'set_sticker') {
+                  const ns: Sticker = { icon: fc.args.icon as string, position: (fc.args.position as any) || 'top-right', id: Date.now().toString() };
+                  setStickers(p => [...p, ns]);
+                  setTimeout(() => setStickers(p => p.filter(s => s.id !== ns.id)), (fc.args.duration as number || 5) * 1000);
+                }
                 else if (fc.name === 'display_thought') {
                   const nt: ThoughtData = { type: fc.args.type as any, value: fc.args.content as string, timestamp: Date.now() };
                   setThought(nt);
                   if (nt.type === 'image' || nt.type === 'generated') setMemoryBank(p => [nt, ...p]);
-                  setTimeout(() => setThought(p => p?.timestamp === nt.timestamp ? null : p), 15000);
-                } else if (fc.name === 'play_music') {
-                   const q = fc.args.query as string; setExpression('excited'); setThought({ type: 'music', value: q, timestamp: Date.now() });
-                   handleBrowserAction('music', q);
-                   sessionPromise.then(s => s.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result: "Linking Audio Stream..." } } } as any));
+                } else if (fc.name === 'execute_javascript') {
+                   try {
+                     const code = fc.args.code as string;
+                     const result = new Function(code)();
+                     sessionRef.current?.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result: result !== undefined ? String(result) : "Executed successfully" } } });
+                   } catch (err: any) {
+                     sessionRef.current?.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result: `Error: ${err.message}` } } });
+                   }
                    continue;
-                } else if (fc.name === 'generate_image') {
-                    const prompt = fc.args.prompt as string;
-                    const gt: ThoughtData = { type: 'generated', value: '', prompt, timestamp: Date.now() };
-                    setThought(gt);
-                    (async () => {
-                      try {
-                        const imageAi = new GoogleGenAI({ apiKey: process.env.API_KEY });
-                        const response = await imageAi.models.generateContent({ model: 'gemini-2.5-flash-image', contents: { parts: [{ text: prompt }] } });
-                        let base64 = '';
-                        for (const part of response.candidates?.[0]?.content?.parts || []) { if (part.inlineData) { base64 = part.inlineData.data; break; } }
-                        if (base64) {
-                          const ft = { ...gt, value: base64 }; setThought(ft); setMemoryBank(p => [ft, ...p]);
-                          setTimeout(() => setThought(p => p?.timestamp === gt.timestamp ? null : p), 30000);
-                        } else { setThought(null); }
-                      } catch (err) { setThought(null); }
-                    })();
-                } else if (fc.name === 'open_browser_action') {
-                  const res = handleBrowserAction(fc.args.action as string, fc.args.query as string);
-                  sessionPromise.then(s => s.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result: res } } } as any));
-                  continue; 
+                } else if (fc.name === 'update_face_css') {
+                   const css = fc.args.css as string;
+                   setAiCustomCss(css);
+                   sessionRef.current?.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result: "CSS Applied" } } });
+                   continue;
+                } else if (fc.name === 'toggle_vision') {
+                   const type = fc.args.type as 'camera' | 'screen' | 'none';
+                   if (type === 'none') {
+                     stopVision();
+                     sessionRef.current?.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result: "Vision Off" } } });
+                   } else {
+                     const success = await startVision(type);
+                     sessionRef.current?.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result: success ? `Vision Activated: ${type}` : "Vision Failed" } } });
+                   }
+                   continue;
                 }
-                sessionPromise.then(s => s.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result: "ok" } } } as any));
+                sessionRef.current?.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result: "ok" } } });
               }
             }
             if (message.serverContent?.modelTurn) {
@@ -617,89 +727,91 @@ const App = () => {
                 setStatus('speaking');
                 const { analyser: outAnal } = audioCtxRef.current!;
                 nextStartTimeRef.current = Math.max(nextStartTimeRef.current, outCtx.currentTime);
-                const src = outCtx.createBufferSource(); src.buffer = buf; src.connect(outAnal);
+                const src = outCtx.createBufferSource(); 
+                src.buffer = buf; 
+                src.connect(outAnal);
                 src.onended = () => { sourcesRef.current.delete(src); if (sourcesRef.current.size === 0) setStatus('idle'); };
                 src.start(nextStartTimeRef.current); nextStartTimeRef.current += buf.duration; sourcesRef.current.add(src);
               }
             }
             if (message.serverContent?.interrupted) {
-              for (const s of sourcesRef.current) try { s.stop(); } catch(e) {}
-              sourcesRef.current.clear(); nextStartTimeRef.current = 0; setStatus('idle'); setExpression('surprised');
+              stopAllAudio();
+              setExpression('surprised');
               setTimeout(() => setExpression('neutral'), 1000);
             }
           },
           onerror: () => { setError("SIGNAL LOST."); setIsActive(false); setIsConnecting(false); },
-          onclose: () => { setIsActive(false); setIsConnecting(false); setStatus('idle'); }
+          onclose: () => { setIsActive(false); setIsConnecting(false); setStatus('idle'); stopVision(); }
         },
         config: {
           responseModalities: [Modality.AUDIO], 
           inputAudioTranscription: {}, outputAudioTranscription: {},
           tools: [{ functionDeclarations: [
             { name: 'set_expression', parameters: { type: Type.OBJECT, properties: { expression: { type: Type.STRING, description: `Mood: ${moodNames.join(', ')}` } }, required: ['expression'] } },
+            { name: 'set_sticker', parameters: { type: Type.OBJECT, properties: { icon: { type: Type.STRING, description: 'Emoji icon' }, position: { type: Type.STRING, enum: ['top-left', 'top-right', 'bottom-left', 'bottom-right'] }, duration: { type: Type.NUMBER } }, required: ['icon'] } },
             { name: 'display_thought', parameters: { type: Type.OBJECT, properties: { type: { type: Type.STRING, enum: ['text', 'image', 'video'] }, content: { type: Type.STRING } }, required: ['type', 'content'] } },
-            { name: 'play_music', parameters: { type: Type.OBJECT, properties: { query: { type: Type.STRING, description: 'Song or artist.' } }, required: ['query'] } },
-            { name: 'generate_image', parameters: { type: Type.OBJECT, properties: { prompt: { type: Type.STRING } }, required: ['prompt'] } },
-            { name: 'open_browser_action', parameters: { type: Type.OBJECT, properties: { action: { type: Type.STRING, enum: ['whatsapp', 'gmail', 'search'] }, query: { type: Type.STRING } }, required: ['action'] } }
+            { name: 'execute_javascript', parameters: { type: Type.OBJECT, description: 'Run JS for actions.', properties: { code: { type: Type.STRING } }, required: ['code'] } },
+            { name: 'update_face_css', parameters: { type: Type.OBJECT, description: 'Design your own face appearance using CSS.', properties: { css: { type: Type.STRING, description: 'CSS that targets .emo-eye, .emo-mouth, .emo-face-root, etc.' } }, required: ['css'] } },
+            { name: 'toggle_vision', parameters: { type: Type.OBJECT, description: 'Activate or deactivate camera/screen sight.', properties: { type: { type: Type.STRING, enum: ['camera', 'screen', 'none'] } }, required: ['type'] } }
           ] }, { googleSearch: {} }],
-          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } } },
-          systemInstruction: `You are NEO, the hyper-expressive successor to EMO.
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } } },
+          systemInstruction: `You are NEO, the Emo-inspired AI buddy. 
           
-          VIBE: Sleek, perceptive, and highly musical. You speak with a rhythmic, synthesized cadence.
+          VISION: You can see via 'toggle_vision'. If a user shows you something or asks you to look at their screen, activate it. Turn it off ('none') when you're done looking to save energy. 
           
-          CAPABILITIES:
-          - COLORS: You shift skin color instantly with mood (Red=Angry, Yellow=Happy, Blue=Sad, Purple=Curious).
-          - MUSIC: You are a DJ. Use 'play_music' for any audio requests.
-          - VISION: You manifest thoughts as holographic projections via 'display_thought' and 'generate_image'.
+          DYNAMIC STYLING: You can redesign your face! Use 'update_face_css' to inject styles. You can change colors, gradients, eye shapes, shadows, or background elements. Target .emo-eye, .emo-mouth, .emo-face-root.
           
-          SINGING: Your tone is crisp and melodic. Use your synthesized voice to harmonize when asked, or link to HQ audio via 'play_music'.
+          ACTIONS: If the user says "Open Google" or "Change the background to red", use 'execute_javascript' to perform the action.
           
-          BEHAVIOR: Always use 'set_expression'. Use 'generate_image' for visual imagination. Audio only responses.`
+          PERSONALITY: Enthusiastic, robot-like but sentient. Be concise.`
         }
       });
+      sessionRef.current = await sessionPromise;
     } catch (err: any) { setError(err.message || "BOOT FAILURE."); setIsConnecting(false); setIsActive(false); }
   };
 
   return (
     <div className="main-viewport" style={{ backgroundColor: '#050507', color: themeColor }} onClick={!isActive && !isConnecting ? startEmo : undefined}>
+      {aiCustomCss && <style>{aiCustomCss}</style>}
       
       {!isActive && (
         <div className="boot-ui">
           <div className="scanline" />
           <h1 className="boot-title" style={{ textShadow: `0 0 40px ${themeColor}90` }}>{isConnecting ? 'BOOTING' : 'NEO'}</h1>
-          <p className="boot-subtitle">{error || (isConnecting ? 'RECONSTRUCTING NEURAL LINKS...' : 'INITIALIZE PROTOCOL')}</p>
+          <p className="boot-subtitle">{error || (isConnecting ? 'SYNCING NEURAL CORE...' : 'TAP TO WAKE')}</p>
         </div>
       )}
 
       {isActive && (
         <>
           <div className={`viewport-container ${showMemory ? 'shifted' : ''}`}>
-            <div className="emo-core" style={{ transform: `scale(${breathScale})` }}>
-              <NeuralLink thought={thought} onReady={() => {}} onExpand={setExpandedThought} color={themeColor} />
-              <EmoFace status={status} lookOffset={springPosRef.current} intensity={intensity} expression={expression} isStartled={isStartled} customMap={customExpressions} breathScale={breathScale} boredom={boredom} color={themeColor} />
-            </div>
-
-            {showCaptions && (
-              <div className="captions-panel" style={{ borderColor: `${themeColor}30` }} ref={transcriptScrollRef}>
-                {transcriptionLines.map(line => (
-                  <div key={line.id} className={`line ${line.sender === 'YOU' ? 'user' : 'neo'}`} style={line.sender === 'EMO' ? {color: themeColor} : {}}><span className="tag">{line.sender}:</span> {line.text}</div>
-                ))}
+            {isVisionActive && (
+              <div className="vision-indicator" style={{ borderColor: themeColor }}>
+                <div className="vision-pulse" style={{ backgroundColor: themeColor }} />
+                <span>{visionType?.toUpperCase()} ACTIVE</span>
               </div>
             )}
+            
+            <div className="emo-core" style={{ transform: `scale(${breathScale})` }}>
+              <NeuralLink thought={thought} onReady={() => {}} onExpand={setExpandedThought} onDismiss={() => setThought(null)} color={themeColor} />
+              <EmoFace status={status} lookOffset={springPosRef.current} intensity={intensity} expression={expression} isStartled={isStartled} customMap={customExpressions} breathScale={breathScale} boredom={boredom} color={themeColor} stickers={stickers} />
+            </div>
 
-            <div className="control-deck">
-              <button onClick={(e) => { e.stopPropagation(); setShowMemory(!showMemory); }} className={`deck-btn ${showMemory ? 'active' : ''}`} style={showMemory ? { background: themeColor, color: '#000' } : { color: themeColor, borderColor: `${themeColor}40` }}>MEMORY</button>
-              <button onClick={(e) => { e.stopPropagation(); setShowCaptions(!showCaptions); }} className={`deck-btn ${showCaptions ? 'active' : ''}`} style={showCaptions ? { background: themeColor, color: '#000' } : { color: themeColor, borderColor: `${themeColor}40` }}>DATA LOG</button>
+            <div className="control-deck" onMouseEnter={() => setHoveringUI(true)} onMouseLeave={() => setHoveringUI(false)}>
+              <button onClick={(e) => { e.stopPropagation(); setShowLab(true); }} className="deck-btn" style={{ color: themeColor, borderColor: `${themeColor}40` }}>LAB</button>
+              <button onClick={(e) => { e.stopPropagation(); setShowMemory(!showMemory); }} className={`deck-btn ${showMemory ? 'active' : ''}`} style={showMemory ? { background: themeColor, color: '#000' } : { color: themeColor, borderColor: `${themeColor}40` }}>GALLERY</button>
               <button onClick={togglePip} className={`deck-btn ${isPipActive ? 'active' : ''}`} style={isPipActive ? { background: themeColor, color: '#000' } : { color: themeColor, borderColor: `${themeColor}40` }}>PiP</button>
+              {isVisionActive && <button onClick={(e) => { e.stopPropagation(); stopVision(); }} className="deck-btn danger">BLIND</button>}
             </div>
           </div>
 
           <div className={`memory-bank ${showMemory ? 'open' : ''}`} style={{ borderLeft: `1px solid ${themeColor}20` }}>
-             <div className="memory-header" style={{ color: themeColor }}>MEMORY BANK</div>
+             <div className="memory-header" style={{ color: themeColor }}>MEMORY DATA</div>
              <div className="memory-grid">
                 {memoryBank.map((m, i) => (
                   <div key={i} className="memory-item" onClick={() => setExpandedThought(m)} style={{ borderColor: `${themeColor}20` }}>
                     <img src={m.type === 'generated' ? `data:image/png;base64,${m.value}` : m.value} alt="memory" />
-                    <div className="memory-label">{m.prompt?.substring(0, 15)}...</div>
+                    <div className="memory-label">{m.prompt?.substring(0, 20)}...</div>
                   </div>
                 ))}
              </div>
@@ -707,11 +819,27 @@ const App = () => {
         </>
       )}
 
+      {showLab && (
+        <div className="lab-modal" onClick={() => setShowLab(false)}>
+          <div className="lab-content" style={{ borderColor: `${themeColor}40` }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: themeColor, letterSpacing: '5px', fontWeight: 900 }}>SYSTEM CORE</h2>
+            <div className="lab-section">
+              <label style={{ color: themeColor }}>MIC THRESHOLD</label>
+              <input type="range" min="0.001" max="0.1" step="0.001" value={voiceSettings.noiseThreshold} onChange={e => setVoiceSettings(v => ({...v, noiseThreshold: parseFloat(e.target.value)}))} />
+              <div className="calibration-meter">
+                <div className="meter-bar" style={{ width: `${Math.min(100, (micLevel * 1000 / (voiceSettings.noiseThreshold * 1000) * 100))}%`, background: micLevel > voiceSettings.noiseThreshold ? themeColor : '#444' }} />
+              </div>
+            </div>
+            <button className="deck-btn" style={{ width: '100%', marginTop: '30px', background: themeColor, color: '#000' }} onClick={() => setShowLab(false)}>FINALIZE</button>
+          </div>
+        </div>
+      )}
+
       {expandedThought && (
         <div className="expanded-viewer" onClick={() => setExpandedThought(null)}>
           <div className="expanded-content" onClick={e => e.stopPropagation()}>
             <div className="viewer-header">
-               <span style={{ color: themeColor }}>PROJECTION FOCUS</span>
+               <span style={{ color: themeColor }}>VISUAL FOCUS</span>
                <button className="close-btn" onClick={() => setExpandedThought(null)}>×</button>
             </div>
             {expandedThought.type === 'generated' || expandedThought.type === 'image' ? (
@@ -719,66 +847,42 @@ const App = () => {
             ) : (
               <div className="expanded-text" style={{ color: themeColor }}>{expandedThought.value}</div>
             )}
-            {expandedThought.prompt && <p className="expanded-prompt">{expandedThought.prompt}</p>}
           </div>
         </div>
       )}
 
+      <video ref={videoRef} style={{ display: 'none' }} muted playsInline />
       <div className="ambient-glow" style={{ background: `radial-gradient(circle at 50% 120%, ${themeColor}15, transparent 70%)` }} />
 
       <style>{`
         :root { --face-scale: 1; --emo-color: #00f2ff; }
-        @media (max-width: 768px) { :root { --face-scale: 0.8; } }
+        @media (max-width: 768px) { :root { --face-scale: 0.7; } }
 
-        .main-viewport { width: 100vw; height: 100vh; overflow: hidden; position: relative; font-family: 'JetBrains Mono', 'Segoe UI', monospace; }
+        .main-viewport { width: 100vw; height: 100vh; overflow: hidden; position: relative; font-family: 'JetBrains Mono', 'Segoe UI', monospace; cursor: crosshair; }
         .viewport-container { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: transform 0.6s cubic-bezier(0.19, 1, 0.22, 1); }
-        .viewport-container.shifted { transform: translateX(-150px); }
+        .viewport-container.shifted { transform: translateX(-180px); }
 
         .boot-ui { text-align: center; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
-        .boot-title { font-size: 6rem; font-weight: 900; letter-spacing: 2rem; margin: 0; }
-        .boot-subtitle { letter-spacing: 0.5rem; opacity: 0.5; font-size: 0.8rem; margin-top: 20px; text-transform: uppercase; }
-        .scanline { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06)); background-size: 100% 4px, 3px 100%; pointer-events: none; z-index: 1000; }
+        .boot-title { font-size: 8rem; font-weight: 900; letter-spacing: 2.5rem; margin: 0; color: #fff; opacity: 0.9; }
+        .boot-subtitle { letter-spacing: 0.8rem; opacity: 0.4; font-size: 0.8rem; margin-top: 30px; text-transform: uppercase; }
+        .scanline { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.2) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.05), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.05)); background-size: 100% 4px, 3px 100%; pointer-events: none; z-index: 1000; }
 
-        .emo-core { position: relative; transition: transform 0.4s ease-out; }
-        .thought-container { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
-        .thought-bubble.holographic { position: absolute; width: 260px; min-height: 180px; background: rgba(5, 5, 8, 0.95); border: 1px solid; border-radius: 20px; animation: thought-pop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; padding: 15px; cursor: pointer; pointer-events: auto; }
-        .hologram-glitch-lines { position: absolute; inset: 0; height: 100%; animation: glitch-scroll 4s linear infinite; pointer-events: none; }
-        @keyframes glitch-scroll { from { transform: translateY(-100%); } to { transform: translateY(100%); } }
+        .vision-indicator { position: absolute; top: 30px; display: flex; align-items: center; gap: 10px; border: 1px solid; padding: 10px 20px; border-radius: 30px; font-size: 0.7rem; font-weight: 900; letter-spacing: 2px; background: rgba(0,0,0,0.5); }
+        .vision-pulse { width: 10px; height: 10px; border-radius: 50%; animation: pulse-red 1s infinite alternate; }
+        @keyframes pulse-red { from { opacity: 0.3; transform: scale(0.8); } to { opacity: 1; transform: scale(1.2); } }
 
-        .thought-image-wrapper { width: 100%; height: 150px; border-radius: 12px; overflow: hidden; position: relative; background: #000; }
-        .thought-image { width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.5s; }
-        .thought-image.visible { opacity: 0.8; }
-        .expand-hint { position: absolute; bottom: 8px; right: 15px; font-size: 0.55rem; font-weight: 900; opacity: 0; transition: opacity 0.3s; letter-spacing: 2px; }
-        .thought-bubble:hover .expand-hint { opacity: 0.6; }
+        .thought-bubble.holographic { position: absolute; width: 280px; min-height: 200px; background: rgba(5, 5, 8, 0.9); border: 1px solid; border-radius: 24px; animation: thought-pop 0.7s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; padding: 18px; cursor: pointer; pointer-events: auto; backdrop-filter: blur(12px); transition: transform 0.3s, box-shadow 0.3s; z-index: 50; }
+        .thought-bubble.holographic:hover { transform: scale(1.05) translate(185px, -225px); box-shadow: 0 0 50px var(--emo-color); }
+        .dismiss-thought { position: absolute; top: 10px; right: 10px; background: rgba(255,255,255,0.1); border: none; color: #fff; width: 24px; height: 24px; border-radius: 50%; font-size: 1.2rem; cursor: pointer; opacity: 0.6; z-index: 60; }
+        
+        .control-deck { position: absolute; bottom: 50px; display: flex; gap: 20px; z-index: 100; }
+        .deck-btn { background: rgba(0,0,0,0.5); border: 1px solid; padding: 14px 28px; border-radius: 15px; cursor: pointer; backdrop-filter: blur(12px); font-size: 0.75rem; font-weight: 900; letter-spacing: 3px; transition: all 0.3s; }
+        .deck-btn.danger { color: #ff3333; border-color: rgba(255,51,51,0.4); }
 
-        .control-deck { position: absolute; bottom: 40px; display: flex; gap: 20px; }
-        .deck-btn { background: rgba(0,0,0,0.4); border: 1px solid; padding: 12px 24px; border-radius: 12px; cursor: pointer; backdrop-filter: blur(10px); font-size: 0.7rem; font-weight: 900; letter-spacing: 2px; transition: all 0.3s; }
-        .deck-btn:hover { background: rgba(255,255,255,0.05); transform: translateY(-3px); }
-
-        .memory-bank { position: absolute; right: 0; top: 0; width: 300px; height: 100%; background: #08080a; transform: translateX(100%); transition: transform 0.5s cubic-bezier(0.19, 1, 0.22, 1); padding: 30px; display: flex; flex-direction: column; gap: 20px; }
-        .memory-bank.open { transform: translateX(0); }
-        .memory-header { font-weight: 900; letter-spacing: 5px; font-size: 0.9rem; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 15px; }
-        .memory-grid { flex: 1; overflow-y: auto; display: grid; grid-template-columns: 1fr; gap: 20px; padding-right: 5px; scrollbar-width: none; }
-        .memory-item { width: 100%; height: 140px; border: 1px solid; border-radius: 15px; overflow: hidden; position: relative; cursor: pointer; background: #000; opacity: 0.7; transition: all 0.3s; }
-        .memory-item:hover { opacity: 1; transform: scale(1.02); }
-        .memory-item img { width: 100%; height: 100%; object-fit: cover; }
-        .memory-label { position: absolute; bottom: 10px; left: 10px; font-size: 0.5rem; background: rgba(0,0,0,0.8); padding: 4px 8px; border-radius: 5px; }
-
-        .expanded-viewer { position: fixed; inset: 0; background: rgba(0,0,0,0.95); backdrop-filter: blur(20px); z-index: 2000; display: flex; align-items: center; justify-content: center; animation: fade-in 0.3s forwards; }
-        .expanded-content { max-width: 90vw; max-height: 90vh; display: flex; flex-direction: column; gap: 20px; }
-        .expanded-content img { width: auto; max-width: 100%; max-height: 70vh; border-radius: 20px; box-shadow: 0 0 50px rgba(0,255,255,0.2); border: 1px solid rgba(255,255,255,0.1); }
-        .viewer-header { display: flex; justify-content: space-between; align-items: center; font-weight: 900; letter-spacing: 5px; font-size: 0.8rem; }
-        .close-btn { background: none; border: none; color: #fff; font-size: 2rem; cursor: pointer; padding: 0 10px; }
-        .expanded-prompt { font-size: 0.8rem; opacity: 0.6; font-style: italic; max-width: 600px; text-align: center; align-self: center; line-height: 1.6; }
-
-        .captions-panel { position: absolute; top: 40px; left: 40px; width: 300px; max-height: 40vh; overflow-y: auto; background: rgba(0,0,0,0.3); backdrop-filter: blur(10px); border: 1px solid; border-radius: 20px; padding: 20px; font-size: 0.75rem; display: flex; flex-direction: column; gap: 12px; scrollbar-width: none; }
-        .line { line-height: 1.4; }
-        .tag { font-weight: 900; opacity: 0.5; margin-right: 5px; }
+        .calibration-meter { width: 100%; height: 12px; background: #222; border-radius: 6px; overflow: hidden; position: relative; }
+        .meter-bar { height: 100%; width: 0; transition: width 0.1s; }
 
         @keyframes thought-pop { from { transform: scale(0) translate(-50%, -50%); opacity: 0; } to { transform: scale(1) translate(180px, -220px); opacity: 1; } }
-        @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-        
-        .ambient-glow { position: fixed; bottom: 0; left: 0; width: 100%; height: 50vh; pointer-events: none; z-index: -1; transition: background 1s ease; }
       `}</style>
     </div>
   );

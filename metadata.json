@@ -1,7 +1,8 @@
 {
   "requestFramePermissions": [
-    "microphone"
+    "microphone",
+    "camera"
   ],
   "name": "Emo Buddy",
-  "description": "An expressive AI companion with personality and audio perception."
+  "description": "An expressive AI companion with personality, audio, and visual perception."
 }
