@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import { GoogleGenAI, LiveServerMessage, Modality, Blob, Type } from '@google/genai';
@@ -110,6 +109,42 @@ function createBlob(data: Float32Array): Blob {
   };
 }
 
+// --- Sound Effects ---
+const playTouchSound = () => {
+  const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+  const oscillator = audioCtx.createOscillator();
+  const gainNode = audioCtx.createGain();
+  
+  oscillator.connect(gainNode);
+  gainNode.connect(audioCtx.destination);
+  
+  oscillator.frequency.value = 800;
+  oscillator.type = 'sine';
+  gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+  gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+  
+  oscillator.start(audioCtx.currentTime);
+  oscillator.stop(audioCtx.currentTime + 0.1);
+};
+
+const playOuchSound = () => {
+  const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+  const oscillator = audioCtx.createOscillator();
+  const gainNode = audioCtx.createGain();
+  
+  oscillator.connect(gainNode);
+  gainNode.connect(audioCtx.destination);
+  
+  oscillator.frequency.setValueAtTime(400, audioCtx.currentTime);
+  oscillator.frequency.exponentialRampToValueAtTime(200, audioCtx.currentTime + 0.15);
+  oscillator.type = 'sawtooth';
+  gainNode.gain.setValueAtTime(0.4, audioCtx.currentTime);
+  gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+  
+  oscillator.start(audioCtx.currentTime);
+  oscillator.stop(audioCtx.currentTime + 0.15);
+};
+
 // --- Face Components ---
 
 const EmoEye = React.memo(({ 
@@ -121,7 +156,8 @@ const EmoEye = React.memo(({
   isStartled,
   breathScale,
   color,
-  stickers
+  stickers,
+  onTouch
 }: { 
   state: string, 
   lookOffset: { x: number, y: number },
@@ -131,14 +167,16 @@ const EmoEye = React.memo(({
   isStartled: boolean,
   breathScale: number,
   color: string,
-  stickers: Sticker[]
+  stickers: Sticker[],
+  onTouch: () => void
 }) => {
   const [blink, setBlink] = useState(false);
+  const [touchBlink, setTouchBlink] = useState(false);
   
   useEffect(() => {
     let timeout: any;
     const triggerBlink = () => {
-      if (expression !== 'wink' && expression !== 'sleepy' && !isStartled) {
+      if (expression !== 'wink' && expression !== 'sleepy' && !isStartled && !touchBlink) {
         setBlink(true);
         setTimeout(() => setBlink(false), 80);
       }
@@ -146,605 +184,487 @@ const EmoEye = React.memo(({
     };
     timeout = setTimeout(triggerBlink, 2000);
     return () => clearTimeout(timeout);
-  }, [expression, isStartled]);
+  }, [expression, isStartled, touchBlink]);
 
-  let width = 90, height = 90, borderRadius = '30%', rotate = 0, scaleY = (blink && !isStartled) ? 0.05 : 1, translateY = 0;
+  const handleTouch = (e: React.MouseEvent | React.TouchEvent) => {
+    e.stopPropagation();
+    onTouch();
+    setTouchBlink(true);
+    playOuchSound();
+    setTimeout(() => setTouchBlink(false), 150);
+  };
+
+  let width = 90, height = 90, borderRadius = '30%', rotate = 0, scaleY = (blink || touchBlink) && !isStartled ? 0.05 : 1, translateY = 0;
   let activeExpression = isStartled ? 'surprised' : expression;
   const isListening = state === 'listening';
   
   if (isListening && activeExpression === 'neutral') activeExpression = 'curious';
-  if (state === 'thinking' && activeExpression === 'neutral') activeExpression = 'thinking';
 
-  switch (activeExpression) {
-    case 'happy': rotate = isLeft ? 15 : -15; borderRadius = '45% 45% 20% 20%'; translateY = -8; break;
-    case 'surprised': width = 100; height = 100; borderRadius = '50%'; break;
-    case 'angry': rotate = isLeft ? -25 : 25; height = 50; borderRadius = '10px 10px 60px 60px'; break;
-    case 'sleepy': scaleY = 0.22; height = 35; borderRadius = '50%'; break;
-    case 'curious': rotate = isLeft ? -12 : 10; height = isLeft ? 80 : 100; break;
-    case 'wink': if (!isLeft) scaleY = 0.05; else { rotate = 15; borderRadius = '50% 50% 25% 25%'; } break;
-    case 'skeptical': rotate = isLeft ? -18 : 0; translateY = isLeft ? -14 : 0; height = isLeft ? 100 : 55; break;
-    case 'sad': rotate = isLeft ? -22 : 22; borderRadius = '20% 20% 50% 50%'; translateY = 18; break;
-    case 'excited': width = 110; height = 80; borderRadius = '35%'; break;
-    case 'thinking': rotate = isLeft ? 12 : -12; height = 65; width = 100; break;
-    case 'annoyed': height = 50; borderRadius = '15px 15px 50px 50px'; rotate = isLeft ? -12 : 12; break;
-    case 'thoughtful': rotate = isLeft ? -22 : -12; height = isLeft ? 85 : 75; borderRadius = '50% 50% 30% 30%'; translateY = -12; break;
-    case 'yawn': scaleY = 0.28; translateY = -15; break;
-    case 'distracted': rotate = isLeft ? 6 : 18; translateY = 8; break;
-  }
+  if (activeExpression === 'happy' || activeExpression === 'excited') { height = 70; borderRadius = '50%'; }
+  else if (activeExpression === 'sad') { height = 80; rotate = isLeft ? 8 : -8; }
+  else if (activeExpression === 'angry' || activeExpression === 'annoyed') { height = 60; translateY = isLeft ? 12 : -12; rotate = isLeft ? -15 : 15; }
+  else if (activeExpression === 'surprised') { width = 110; height = 110; borderRadius = '50%'; }
+  else if (activeExpression === 'sleepy') { height = 20; borderRadius = '50%'; }
+  else if (activeExpression === 'wink' && !isLeft) { height = 15; borderRadius = '50%'; }
+  else if (activeExpression === 'skeptical') { rotate = isLeft ? -20 : 20; height = 70; }
+  else if (activeExpression === 'yawn') { height = 110; width = 75; borderRadius = '40%'; }
 
-  const voiceScale = state === 'speaking' ? 1 + intensity * 0.45 : 1;
-  const startleScale = isStartled ? 1.25 : 1;
-  const glowIntensity = isListening ? (40 + Math.sin(Date.now() / 150) * 25) : (state === 'speaking' ? 20 + intensity * 60 : 30);
+  const offsetX = lookOffset.x * 15;
+  const offsetY = lookOffset.y * 10;
+  const pupilSize = isListening ? 30 + intensity * 8 : 30;
 
   return (
-    <div className="emo-eye-container" style={{ perspective: '800px', position: 'relative' }}>
-      {isListening && <div className="listening-ring" style={{ position: 'absolute', top: '-20%', left: '-20%', width: '140%', height: '140%', border: `4px solid ${color}`, borderRadius: borderRadius, opacity: 0.4, animation: 'pulse-ring 1.5s infinite ease-out' }} />}
-      
-      {stickers.map(s => (
-        <div key={s.id} className={`sticker ${s.position}`} style={{ 
-          position: 'absolute', 
-          fontSize: '2rem', 
-          zIndex: 10,
-          animation: 'sticker-pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
-          left: s.position.includes('left') ? '-30%' : 'auto',
-          right: s.position.includes('right') ? '-30%' : 'auto',
-          top: s.position.includes('top') ? '-30%' : 'auto',
-          bottom: s.position.includes('bottom') ? '-30%' : 'auto',
-          pointerEvents: 'none'
-        }}>
-          {s.icon}
-        </div>
-      ))}
-
-      <div className="emo-eye" style={{
+    <div 
+      className="emo-eye" 
+      style={{
         width: `${width}px`,
         height: `${height}px`,
+        borderRadius,
+        transform: `rotate(${rotate}deg) scaleY(${scaleY}) translateY(${translateY}px)`,
         backgroundColor: color,
-        borderRadius: borderRadius,
-        boxShadow: `0 0 ${glowIntensity}px ${color}B3, inset 0 0 25px rgba(255, 255, 255, 0.55)`,
-        transition: isStartled ? 'all 0.05s ease-out' : 'all 0.25s cubic-bezier(0.19, 1, 0.22, 1), background-color 0.8s ease',
-        transform: `translate3d(${lookOffset.x}px, ${lookOffset.y + translateY}px, 0) scaleY(${scaleY}) rotate(${rotate}deg) scale(${voiceScale * startleScale * breathScale})`,
-        position: 'relative',
         display: 'flex',
-        justifyContent: 'center',
         alignItems: 'center',
-        willChange: 'transform, box-shadow'
-      }}>
-        <div className="eye-shine" style={{ 
-          position: 'absolute', 
-          top: '12%', 
-          left: '12%', 
-          width: '28%', 
-          height: '28%', 
-          background: 'rgba(255,255,255,0.75)', 
-          borderRadius: '35%', 
-          opacity: (blink || (activeExpression === 'wink' && !isLeft)) ? 0 : 1, 
-          transition: 'opacity 0.1s' 
+        justifyContent: 'center',
+        position: 'relative',
+        cursor: 'pointer',
+        transition: 'all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)'
+      }}
+      onClick={handleTouch}
+      onTouchStart={handleTouch}
+    >
+      {activeExpression !== 'sleepy' && activeExpression !== 'wink' && (
+        <div className="pupil" style={{
+          width: `${pupilSize}px`,
+          height: `${pupilSize}px`,
+          backgroundColor: '#000',
+          borderRadius: '50%',
+          transform: `translate(${offsetX}px, ${offsetY}px)`,
+          transition: 'width 0.15s, height 0.15s, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)'
         }} />
-      </div>
+      )}
+      {stickers.filter(s => s.position === (isLeft ? 'top-left' : 'top-right')).map(st => (
+        <div key={st.id} style={{ position: 'absolute', fontSize: '2rem', top: '-40px', left: isLeft ? '-40px' : 'auto', right: !isLeft ? '-40px' : 'auto' }}>{st.icon}</div>
+      ))}
     </div>
   );
 });
 
-const EmoMouth = React.memo(({ state, lookOffset, intensity, expression, isStartled, breathScale, color }: { state: string, lookOffset: { x: number, y: number }, intensity: number, expression: Expression, isStartled: boolean, breathScale: number, color: string }) => {
-  let width = 45, height = 10, borderRadius = '10px', rotate = 0;
-  const mouthX = lookOffset.x * 0.45, mouthY = lookOffset.y * 0.35;
-  let activeExpression = isStartled ? 'surprised' : expression;
+const EmoMouth = React.memo(({ 
+  state, 
+  intensity, 
+  expression, 
+  color,
+  stickers 
+}: { 
+  state: string, 
+  intensity: number, 
+  expression: Expression,
+  color: string,
+  stickers: Sticker[]
+}) => {
+  let width = 120, height = 40, borderRadius = '0 0 80px 80px', rotate = 0, scaleY = 1, background = color;
+  const isSpeaking = state === 'speaking';
 
-  if (state === 'speaking') {
-    width = 30 + intensity * 35;
-    height = 10 + intensity * 55;
-    borderRadius = intensity > 0.3 ? '50%' : '20px';
-  } else {
-    switch (activeExpression) {
-      case 'happy': width = 60; height = 20; borderRadius = '0 0 40px 40px'; break;
-      case 'surprised': width = 35; height = 35; borderRadius = '50%'; break;
-      case 'angry': width = 45; height = 8; rotate = -8; break;
-      case 'sad': width = 55; height = 15; borderRadius = '35px 35px 0 0'; break;
-      case 'skeptical': width = 40; height = 9; rotate = 22; break;
-      case 'excited': width = 75; height = 28; borderRadius = '15px 15px 50px 50px'; break;
-      case 'sleepy': width = 22; height = 22; borderRadius = '50%'; break;
-      case 'wink': width = 50; height = 15; borderRadius = '0 0 30px 30px'; rotate = -8; break;
-      case 'annoyed': width = 40; height = 6; break;
-      case 'thoughtful': width = 22; height = 22; borderRadius = '50%'; break;
-      case 'yawn': width = 25; height = 45; borderRadius = '50%'; break;
-    }
-  }
+  if (isSpeaking) { height = 30 + intensity * 20; scaleY = 0.8 + intensity * 0.4; }
+  else if (expression === 'happy' || expression === 'excited') { borderRadius = '0 0 100px 100px'; height = 60; }
+  else if (expression === 'sad') { borderRadius = '100px 100px 0 0'; height = 50; scaleY = 0.7; }
+  else if (expression === 'angry' || expression === 'annoyed') { borderRadius = '0'; height = 15; width = 140; }
+  else if (expression === 'surprised') { borderRadius = '50%'; width = 60; height = 60; }
+  else if (expression === 'wink') { borderRadius = '0 0 60px 60px'; height = 30; rotate = 15; }
+  else if (expression === 'skeptical') { rotate = -12; height = 30; width = 100; }
+  else if (expression === 'yawn') { borderRadius = '50%'; width = 80; height = 100; }
 
   return (
-    <div className="emo-mouth-container" style={{ position: 'relative', marginTop: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      {state === 'speaking' && (
-        <div className="voice-waves" style={{
-          position: 'absolute',
-          width: '200%',
-          height: '200%',
-          border: `3px solid ${color}`,
-          borderRadius: '50%',
-          opacity: 0.6 * intensity,
-          transform: `scale(${1 + intensity * 1.2})`,
-          transition: 'transform 0.05s ease-out',
-          boxShadow: `0 0 ${30 * intensity}px ${color}`
-        }} />
-      )}
+    <div style={{ position: 'relative' }}>
       <div className="emo-mouth" style={{
         width: `${width}px`,
         height: `${height}px`,
-        backgroundColor: color,
-        borderRadius: borderRadius,
-        boxShadow: `0 0 ${18 + intensity * 35}px ${color}99`,
-        transform: `translate3d(${mouthX}px, ${mouthY}px, 0) rotate(${rotate}deg) scale(${isStartled ? 1.3 : 1 * breathScale})`,
-        transition: 'all 0.28s cubic-bezier(0.175, 0.885, 0.32, 1.275), background-color 0.8s ease',
-        willChange: 'transform, width, height'
+        borderRadius,
+        transform: `rotate(${rotate}deg) scaleY(${scaleY})`,
+        backgroundColor: background,
+        transition: 'all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)',
+        position: 'relative'
       }} />
+      {stickers.filter(s => s.position === 'bottom-left' || s.position === 'bottom-right').map(st => (
+        <div key={st.id} style={{ position: 'absolute', fontSize: '2rem', bottom: '-40px', left: st.position === 'bottom-left' ? '-40px' : 'auto', right: st.position === 'bottom-right' ? '-40px' : 'auto' }}>{st.icon}</div>
+      ))}
     </div>
   );
 });
 
-const EmoFace = ({ status, lookOffset, intensity, expression, isStartled, customMap, breathScale, boredom, color, stickers }: any) => {
-  const isCustom = customMap[expression];
-  let eyeExp = isCustom ? isCustom.eyeBase : expression;
-  let mouthExp = isCustom ? isCustom.mouthBase : expression;
+const EmoFace = React.memo(({ 
+  status, 
+  lookOffset, 
+  intensity, 
+  expression, 
+  isStartled, 
+  customMap, 
+  breathScale, 
+  boredom, 
+  color,
+  stickers,
+  onEyeTouch
+}: { 
+  status: string, 
+  lookOffset: { x: number, y: number }, 
+  intensity: number, 
+  expression: Expression, 
+  isStartled: boolean, 
+  customMap: Record<string, CustomExpression>, 
+  breathScale: number, 
+  boredom: number,
+  color: string,
+  stickers: Sticker[],
+  onEyeTouch: (isLeft: boolean) => void
+}) => {
+  const custom = customMap[expression];
+  const eyeExp = custom?.eyeBase || expression;
+  const mouthExp = custom?.mouthBase || expression;
+  
+  return (
+    <div className="emo-face-root" style={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      alignItems: 'center', 
+      gap: '60px',
+      transform: `scale(calc(var(--face-scale) * ${breathScale}))`,
+      transition: 'transform 0.5s ease-in-out',
+      filter: boredom > 0.7 ? `grayscale(${(boredom - 0.7) * 2})` : 'none'
+    }}>
+      <div style={{ display: 'flex', gap: '80px' }}>
+        <EmoEye state={status} lookOffset={lookOffset} intensity={intensity} expression={eyeExp} isLeft={true} isStartled={isStartled} breathScale={breathScale} color={color} stickers={stickers} onTouch={() => onEyeTouch(true)} />
+        <EmoEye state={status} lookOffset={lookOffset} intensity={intensity} expression={eyeExp} isLeft={false} isStartled={isStartled} breathScale={breathScale} color={color} stickers={stickers} onTouch={() => onEyeTouch(false)} />
+      </div>
+      <EmoMouth state={status} intensity={intensity} expression={mouthExp} color={color} stickers={stickers} />
+    </div>
+  );
+});
 
-  if (expression === 'neutral' && status === 'idle') {
-    if (boredom > 80) eyeExp = 'sleepy';
-    else if (boredom > 40) eyeExp = 'distracted';
-  }
-
-  let headTilt = 0;
-  if (eyeExp === 'curious' || status === 'listening') headTilt = -10;
-  if (eyeExp === 'thoughtful' || status === 'thinking') headTilt = 8;
-  if (eyeExp === 'skeptical') headTilt = 15;
-  if (eyeExp === 'sad') headTilt = -18;
+const NeuralLink = ({ thought, onReady, onExpand, onDismiss, color }: { thought: ThoughtData | null, onReady: () => void, onExpand: (t: ThoughtData) => void, onDismiss: () => void, color: string }) => {
+  useEffect(() => { if (thought) onReady(); }, [thought, onReady]);
+  if (!thought) return null;
 
   return (
-    <div className={`emo-face-root ${status === 'idle' ? 'idle-wiggle' : ''}`}
-      style={{ 
-        display: 'flex', 
-        flexDirection: 'column', 
-        alignItems: 'center', 
-        animation: 'face-boot 1.4s cubic-bezier(0.34, 1.56, 0.64, 1)', 
-        transform: `translate3d(0, ${isStartled ? -30 : 0}px, 0) scale(calc(var(--face-scale) * ${isStartled ? 1.15 : 1})) rotate(${headTilt}deg)`, 
-        transition: 'transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1.5)' 
-      }}>
-      <div className="emo-eyes-row" style={{ display: 'flex', gap: 'calc(80px * var(--face-scale))' }}>
-        <EmoEye state={status} lookOffset={lookOffset} intensity={intensity} expression={eyeExp} isLeft={true} isStartled={isStartled} breathScale={breathScale} color={color} stickers={stickers} />
-        <EmoEye state={status} lookOffset={lookOffset} intensity={intensity} expression={eyeExp} isLeft={false} isStartled={isStartled} breathScale={breathScale} color={color} stickers={stickers} />
-      </div>
-      <EmoMouth state={status} lookOffset={lookOffset} intensity={intensity} expression={mouthExp} isStartled={isStartled} breathScale={breathScale} color={color} />
+    <div className="thought-bubble holographic" style={{ borderColor: `${color}80`, '--emo-color': color } as any} onClick={() => onExpand(thought)}>
+      <button className="dismiss-thought" onClick={(e) => { e.stopPropagation(); onDismiss(); }}>×</button>
+      {thought.type === 'text' && <div style={{ fontSize: '0.9rem', lineHeight: '1.6', color }}>{thought.value}</div>}
+      {(thought.type === 'image' || thought.type === 'generated') && <img src={thought.type === 'generated' ? `data:image/png;base64,${thought.value}` : thought.value} alt="thought" style={{ width: '100%', borderRadius: '12px' }} />}
+      {thought.type === 'video' && <video src={thought.value} controls style={{ width: '100%', borderRadius: '12px' }} />}
     </div>
   );
 };
 
-// --- Neural Link Components ---
-
-const NeuralLink = React.memo(({ 
-  thought, 
-  onReady, 
-  onExpand,
-  onDismiss,
-  color 
-}: { 
-  thought: ThoughtData | null, 
-  onReady: () => void, 
-  onExpand: (t: ThoughtData) => void,
-  onDismiss: () => void,
-  color: string 
-}) => {
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (thought?.type === 'image' || thought?.type === 'generated' || thought?.type === 'music') {
-      setLoading(true);
-    } else if (thought) {
-      onReady();
-    }
-  }, [thought, onReady]);
-
-  if (!thought) return null;
-
-  const imageUrl = thought.type === 'generated' 
-    ? `data:image/png;base64,${thought.value}` 
-    : `https://images.unsplash.com/photo-1514525253361-bee24383c87f?auto=format&fit=crop&w=400&fm=jpg&sig=${encodeURIComponent(thought.value || 'abstract')}`;
-
-  return (
-    <div className="thought-container">
-      <div className="thought-bubble holographic" style={{ borderColor: color, boxShadow: `0 0 35px ${color}40` }} onClick={() => onExpand(thought)}>
-        <button className="dismiss-thought" onClick={(e) => { e.stopPropagation(); onDismiss(); }}>×</button>
-        <div className="hologram-glitch-lines" style={{ background: `linear-gradient(transparent, ${color}20, transparent)` }} />
-        
-        {thought.type === 'text' && <div className="thought-text-wrapper"><p className="thought-text" style={{ color }}>{thought.value}</p></div>}
-        
-        {thought.type === 'music' && (
-          <div className="thought-music-wrapper">
-             <div className="visualizer-bars">
-                {[...Array(12)].map((_, i) => (
-                  <div key={i} className="v-bar" style={{ backgroundColor: color, animationDelay: `${i * 0.08}s` }} />
-                ))}
-             </div>
-             <div className="music-info">
-                <span className="now-playing">LINKING STREAM</span>
-                <span className="track-name" style={{ color }}>{thought.value.toUpperCase()}</span>
-             </div>
-          </div>
-        )}
-
-        {(thought.type === 'image' || thought.type === 'generated') && (
-          <div className="thought-image-wrapper">
-            {loading && (
-              <div className="generating-visual">
-                <div className="loader-inner" style={{ borderTopColor: color }} />
-                <div className="generating-text" style={{ color }}>RECONSTRUCTING...</div>
-                <div className="scanning-line" style={{ background: color, boxShadow: `0 0 10px ${color}` }} />
-              </div>
-            )}
-            <img 
-              src={imageUrl} 
-              alt="thought" 
-              className={`thought-image ${loading ? 'hidden' : 'visible'}`} 
-              onLoad={() => { setLoading(false); onReady(); }} 
-              onError={(e) => { 
-                (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1614728263952-84ea256f9679?auto=format&fit=crop&w=400&q=80';
-                setLoading(false); 
-                onReady(); 
-              }} 
-            />
-            <div className="image-overlay" />
-          </div>
-        )}
-
-        {thought.type === 'video' && <div className="thought-video-wrapper"><svg className="video-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><p className="video-link-text">WATCH LINK</p></div>}
-        
-        <div className="expand-hint" style={{ color }}>TAP TO FOCUS</div>
-      </div>
-      <div className="thought-dot dot-1" style={{ borderColor: color }} /><div className="thought-dot dot-2" style={{ borderColor: color }} />
-    </div>
-  );
-});
-
 // --- Main App ---
-
 const App = () => {
   const [isActive, setIsActive] = useState(false);
-  const [status, setStatus] = useState<'idle' | 'listening' | 'speaking' | 'thinking'>('idle');
-  const [expression, setExpression] = useState<string>('neutral');
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [status, setStatus] = useState<'idle' | 'listening' | 'speaking'>('idle');
+  const [expression, setExpression] = useState<Expression>('neutral');
+  const [customExpressions, setCustomExpressions] = useState<Record<string, CustomExpression>>({});
   const [intensity, setIntensity] = useState(0);
-  const [micLevel, setMicLevel] = useState(0); 
-  const [mousePos, setMousePos] = useState({ x: 0.5, y: 0.5 });
-  const [error, setError] = useState<string | null>(null);
   const [isStartled, setIsStartled] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [stickers, setStickers] = useState<Sticker[]>([]);
   const [thought, setThought] = useState<ThoughtData | null>(null);
   const [memoryBank, setMemoryBank] = useState<ThoughtData[]>([]);
   const [expandedThought, setExpandedThought] = useState<ThoughtData | null>(null);
-  const [breathScale, setBreathScale] = useState(1);
-  const [boredom, setBoredom] = useState(0);
-  const [hoveringUI, setHoveringUI] = useState(false);
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [showCaptions, setShowCaptions] = useState(false);
   const [showMemory, setShowMemory] = useState(false);
-  const [transcriptionLines, setTranscriptionLines] = useState<TranscriptLine[]>([]);
   const [showLab, setShowLab] = useState(false);
   const [isPipActive, setIsPipActive] = useState(false);
-  const [stickers, setStickers] = useState<Sticker[]>([]);
-  const [aiCustomCss, setAiCustomCss] = useState('');
-  
-  // Vision states
   const [isVisionActive, setIsVisionActive] = useState(false);
   const [visionType, setVisionType] = useState<'camera' | 'screen' | null>(null);
-  
-  const [voiceSettings, setVoiceSettings] = useState<VoiceSettings>(() => {
-    const saved = localStorage.getItem('neo_settings_v4');
-    return saved ? JSON.parse(saved) : { noiseThreshold: 0.015 };
-  });
+  const [voiceSettings, setVoiceSettings] = useState<VoiceSettings>({ noiseThreshold: 0.01 });
+  const [micLevel, setMicLevel] = useState(0);
+  const [aiCustomCss, setAiCustomCss] = useState<string>('');
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const sessionRef = useRef<any>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const audioQueueRef = useRef<AudioBuffer[]>([]);
+  const isPlayingRef = useRef(false);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const visionIntervalRef = useRef<any>(null);
+
+  const springPosRef = useRef({ x: 0, y: 0 });
+  const targetPosRef = useRef({ x: 0, y: 0 });
+  const velocityRef = useRef({ x: 0, y: 0 });
+  const [hoveringUI, setHoveringUI] = useState(false);
+  const lastActivityRef = useRef(Date.now());
+  const [boredom, setBoredom] = useState(0);
+  const [breathScale, setBreathScale] = useState(1);
 
   const themeColor = useMemo(() => getMoodColor(expression), [expression]);
 
-  const [customExpressions, setCustomExpressions] = useState<Record<string, CustomExpression>>(() => {
-    const saved = localStorage.getItem('neo_custom_moods');
-    return saved ? JSON.parse(saved) : {};
-  });
-
-  const statusRef = useRef(status);
-  const audioCtxRef = useRef<any>(null);
-  const nextStartTimeRef = useRef(0);
-  const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
-  const springPosRef = useRef({ x: 0, y: 0 });
-  const transcriptScrollRef = useRef<HTMLDivElement>(null);
-  const currentInputTranscription = useRef('');
-  const currentOutputTranscription = useRef('');
-  const pipWindowRef = useRef<any>(null);
-  const pipRootRef = useRef<any>(null);
-  const voiceSettingsRef = useRef(voiceSettings);
-  const vadActiveRef = useRef(0); 
-  const visionIntervalRef = useRef<number | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const sessionRef = useRef<any>(null);
-
   useEffect(() => {
-    voiceSettingsRef.current = voiceSettings;
-    localStorage.setItem('neo_settings_v4', JSON.stringify(voiceSettings));
-  }, [voiceSettings]);
-
-  useEffect(() => {
-    statusRef.current = status;
-    if (status !== 'idle') setBoredom(0);
-  }, [status]);
-
-  useEffect(() => {
-    if (transcriptScrollRef.current) transcriptScrollRef.current.scrollTop = transcriptScrollRef.current.scrollHeight;
-  }, [transcriptionLines]);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (statusRef.current === 'idle') {
-        setBoredom(prev => Math.min(100, prev + 1));
-      }
-    }, 3500);
+    const breathe = () => {
+      const t = Date.now() / 2000;
+      const scale = 1 + Math.sin(t) * 0.02;
+      setBreathScale(scale);
+    };
+    const interval = setInterval(breathe, 50);
     return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
-    document.documentElement.style.setProperty('--emo-color', themeColor);
-  }, [themeColor]);
+    const checkBoredom = setInterval(() => {
+      const elapsed = (Date.now() - lastActivityRef.current) / 1000;
+      setBoredom(Math.min(elapsed / 30, 1));
+    }, 1000);
+    return () => clearInterval(checkBoredom);
+  }, []);
 
   useEffect(() => {
-    let animFrame: number;
-    const update = () => {
-      const now = Date.now();
-      const breath = 1 + Math.sin(now / 950) * 0.012;
-      setBreathScale(breath);
-
-      if (audioCtxRef.current?.analyser && statusRef.current === 'speaking') {
-        const dataArray = new Uint8Array(audioCtxRef.current.analyser.frequencyBinCount);
-        audioCtxRef.current.analyser.getByteFrequencyData(dataArray);
-        const average = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
-        setIntensity(average / 128); 
-      } else {
-        setIntensity(0);
-      }
-      
-      const isSmallScreen = window.innerWidth < 768;
-      const rangeX = hoveringUI ? (isSmallScreen ? 50 : 80) : 45;
-      const rangeY = hoveringUI ? (isSmallScreen ? 40 : 60) : 35;
-      const targetX = (mousePos.x - 0.5) * rangeX;
-      const targetY = (mousePos.y - 0.5) * rangeY;
-      
-      const springK = hoveringUI ? 0.22 : 0.08;
-      springPosRef.current.x += (targetX - springPosRef.current.x) * springK;
-      springPosRef.current.y += (targetY - springPosRef.current.y) * springK;
-
-      animFrame = requestAnimationFrame(update);
+    const animate = () => {
+      const stiffness = 0.15;
+      const damping = 0.7;
+      const dx = targetPosRef.current.x - springPosRef.current.x;
+      const dy = targetPosRef.current.y - springPosRef.current.y;
+      velocityRef.current.x += dx * stiffness;
+      velocityRef.current.y += dy * stiffness;
+      velocityRef.current.x *= damping;
+      velocityRef.current.y *= damping;
+      springPosRef.current.x += velocityRef.current.x;
+      springPosRef.current.y += velocityRef.current.y;
+      requestAnimationFrame(animate);
     };
-    update();
-    return () => cancelAnimationFrame(animFrame);
-  }, [mousePos, isActive, status, hoveringUI]);
+    animate();
+  }, []);
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (hoveringUI) return;
+    const rect = document.querySelector('.main-viewport')?.getBoundingClientRect();
+    if (!rect) return;
+    const x = ((e.clientX - rect.width / 2) / rect.width) * 2;
+    const y = ((e.clientY - rect.height / 2) / rect.height) * 2;
+    targetPosRef.current = { x: Math.max(-1, Math.min(1, x)), y: Math.max(-1, Math.min(1, y)) };
+    lastActivityRef.current = Date.now();
+  }, [hoveringUI]);
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => setMousePos({ x: e.clientX / window.innerWidth, y: e.clientY / window.innerHeight });
     window.addEventListener('mousemove', handleMouseMove);
     return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, []);
+  }, [handleMouseMove]);
 
-  const stopAllAudio = useCallback(() => {
-    for (const s of sourcesRef.current) {
-      try { s.stop(); } catch(e) {}
-    }
-    sourcesRef.current.clear();
-    nextStartTimeRef.current = 0;
-    setStatus('idle');
-  }, []);
-
-  const stopVision = useCallback(() => {
-    if (visionIntervalRef.current) {
-      clearInterval(visionIntervalRef.current);
-      visionIntervalRef.current = null;
-    }
-    if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach(track => track.stop());
-      videoRef.current.srcObject = null;
-    }
+  const stopVision = () => {
+    if (visionIntervalRef.current) clearInterval(visionIntervalRef.current);
+    if (mediaStreamRef.current) mediaStreamRef.current.getTracks().forEach(t => t.stop());
     setIsVisionActive(false);
     setVisionType(null);
-  }, []);
+  };
 
-  const startVision = useCallback(async (type: 'camera' | 'screen') => {
-    stopVision();
+  const togglePip = async () => {
+    if (!document.pictureInPictureEnabled) return;
     try {
-      let stream;
-      if (type === 'camera') {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+        setIsPipActive(false);
       } else {
-        // Screen sharing (getDisplayMedia)
-        stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        const canvas = document.createElement('canvas');
+        canvas.width = 800;
+        canvas.height = 600;
+        const stream = canvas.captureStream(30);
+        const video = document.createElement('video');
+        video.srcObject = stream;
+        video.muted = true;
+        await video.play();
+        await video.requestPictureInPicture();
+        setIsPipActive(true);
+        const ctx = canvas.getContext('2d');
+        const draw = () => {
+          if (!ctx) return;
+          ctx.fillStyle = '#050507';
+          ctx.fillRect(0, 0, 800, 600);
+          ctx.fillStyle = themeColor;
+          ctx.font = '900 60px JetBrains Mono';
+          ctx.textAlign = 'center';
+          ctx.fillText('NEO', 400, 300);
+          if (document.pictureInPictureElement) requestAnimationFrame(draw);
+        };
+        draw();
       }
+    } catch {}
+  };
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
-      }
-
-      setIsVisionActive(true);
-      setVisionType(type);
-
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-
-      visionIntervalRef.current = window.setInterval(() => {
-        if (!videoRef.current || !ctx || !sessionRef.current) return;
-        canvas.width = 320; 
-        canvas.height = 240;
-        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-        canvas.toBlob((blob) => {
-          if (blob) {
-            blob.arrayBuffer().then((buffer) => {
-              const base64Data = encode(new Uint8Array(buffer));
-              sessionRef.current?.sendRealtimeInput({
-                media: { data: base64Data, mimeType: 'image/jpeg' }
-              });
-            });
-          }
-        }, 'image/jpeg', 0.5);
-      }, 1000); 
-      return { success: true, message: `Vision Activated: ${type}` };
-    } catch (err: any) {
-      console.error('Vision error:', err);
-      let errorMsg = err.message || "Unknown vision error";
-      if (err.name === 'NotAllowedError' || errorMsg.includes('Permissions policy')) {
-        errorMsg = "Access to screen/camera disallowed by browser policy or user. Check site permissions.";
-      }
-      return { success: false, message: errorMsg };
-    }
-  }, [stopVision]);
-
-  const togglePip = async (e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    if (isPipActive) { if (pipWindowRef.current) pipWindowRef.current.close(); return; }
-    if (!('documentPictureInPicture' in window)) { alert("PiP not supported."); return; }
+  const toggleFullscreen = async () => {
     try {
-      const pipWindow = await (window as any).documentPictureInPicture.requestWindow({ width: 400, height: 400 });
-      pipWindowRef.current = pipWindow;
-      setIsPipActive(true);
-      [...document.styleSheets].forEach((ss) => {
-        try {
-          const style = document.createElement('style');
-          style.textContent = [...ss.cssRules].map((r) => r.cssText).join('');
-          pipWindow.document.head.appendChild(style);
-        } catch (e) {}
-      });
-      pipWindow.document.documentElement.style.setProperty('--emo-color', themeColor);
-      pipWindow.document.body.style.backgroundColor = '#0c0c0e';
-      const pipDiv = pipWindow.document.createElement('div');
-      pipWindow.document.body.appendChild(pipDiv);
-      const pipRoot = createRoot(pipDiv);
-      pipRootRef.current = pipRoot;
-      pipWindow.addEventListener('pagehide', () => { setIsPipActive(false); pipWindowRef.current = null; pipRootRef.current = null; });
-    } catch (err) { console.error(err); }
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+        if (screen.orientation && screen.orientation.lock) {
+          try {
+            await screen.orientation.lock('landscape');
+          } catch (e) {
+            console.log('Orientation lock not supported');
+          }
+        }
+        setIsFullscreen(true);
+      } else {
+        await document.exitFullscreen();
+        if (screen.orientation && screen.orientation.unlock) {
+          screen.orientation.unlock();
+        }
+        setIsFullscreen(false);
+      }
+    } catch (e) {
+      console.error('Fullscreen error:', e);
+    }
   };
 
   useEffect(() => {
-    if (isPipActive && pipRootRef.current) {
-      pipRootRef.current.render(
-        <div style={{ transform: `scale(${breathScale})`, display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', position: 'relative' }}>
-          {aiCustomCss && <style>{aiCustomCss}</style>}
-          <EmoFace status={status} lookOffset={springPosRef.current} intensity={intensity} expression={expression} isStartled={isStartled} customMap={customExpressions} breathScale={breathScale} boredom={boredom} color={themeColor} stickers={stickers} />
-        </div>
-      );
-    }
-  }, [isPipActive, status, expression, intensity, isStartled, customExpressions, breathScale, boredom, springPosRef.current, themeColor, stickers, aiCustomCss]);
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const handleEyeTouch = (isLeft: boolean) => {
+    lastActivityRef.current = Date.now();
+    setIsStartled(true);
+    setTimeout(() => setIsStartled(false), 300);
+  };
+
+  const moodNames = ['neutral', 'happy', 'surprised', 'angry', 'curious', 'sleepy', 'wink', 'skeptical', 'sad', 'excited', 'thinking', 'annoyed', 'thoughtful', 'yawn', 'distracted'];
 
   const startEmo = async () => {
-    if (isActive || isConnecting) return;
+    if (isConnecting || isActive) return;
     setIsConnecting(true);
     setError(null);
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const inputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
-      const outputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-      const analyser = outputCtx.createAnalyser();
-      analyser.fftSize = 128; analyser.connect(outputCtx.destination);
-      if (inputCtx.state === 'suspended') await inputCtx.resume();
-      if (outputCtx.state === 'suspended') await outputCtx.resume();
-      audioCtxRef.current = { input: inputCtx, output: outputCtx, analyser };
+      mediaStreamRef.current = stream;
 
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const moodNames = ['neutral', 'happy', 'surprised', 'angry', 'curious', 'sleepy', 'wink', 'skeptical', 'sad', 'excited', 'thinking', 'annoyed', 'thoughtful', 'yawn', 'distracted', ...Object.keys(customExpressions)];
+      const audioCtx = new AudioContext({ sampleRate: 16000 });
+      audioCtxRef.current = audioCtx;
 
-      const sessionPromise = ai.live.connect({
-        model: 'gemini-2.5-flash-native-audio-preview-12-2025',
-        callbacks: {
-          onopen: () => {
-            setIsActive(true); setIsConnecting(false); setExpression('happy');
-            setTimeout(() => setExpression('neutral'), 1200);
-            const source = inputCtx.createMediaStreamSource(stream);
-            const scriptProcessor = inputCtx.createScriptProcessor(4096, 1, 1);
-            
-            scriptProcessor.onaudioprocess = (e) => {
-              const inputData = e.inputBuffer.getChannelData(0);
-              const volume = inputData.reduce((a, b) => a + Math.abs(b), 0) / inputData.length;
-              setMicLevel(volume); 
+      const source = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      analyserRef.current = analyser;
+      source.connect(analyser);
 
-              if (volume > voiceSettingsRef.current.noiseThreshold) {
-                vadActiveRef.current = 5; 
-                if (statusRef.current === 'speaking') {
-                   // IMMEDIATE INTERRUPTION
-                   stopAllAudio();
-                }
-                if (statusRef.current === 'idle') setStatus('listening');
-                sessionRef.current?.sendRealtimeInput({ media: createBlob(inputData) });
-              } else if (vadActiveRef.current > 0) {
-                vadActiveRef.current--;
-                sessionRef.current?.sendRealtimeInput({ media: createBlob(inputData) });
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      const checkLevel = () => {
+        analyser.getByteFrequencyData(dataArray);
+        const avg = dataArray.reduce((a, b) => a + b) / dataArray.length / 255;
+        setMicLevel(avg);
+        requestAnimationFrame(checkLevel);
+      };
+      checkLevel();
+
+      const processor = audioCtx.createScriptProcessor(4096, 1, 1);
+      source.connect(processor);
+      processor.connect(audioCtx.destination);
+
+      const client = new GoogleGenAI(import.meta.env.VITE_GEMINI_KEY);
+      const sessionPromise = client.live.connect({
+        model: 'models/gemini-2.0-flash-exp',
+        handlers: {
+          onopen: () => { setIsActive(true); setIsConnecting(false); setStatus('idle'); },
+          onaudio: async (data: LiveServerMessage) => {
+            if (data.data) {
+              const buffer = await decodeAudioData(decode(data.data), audioCtx, 24000, 1);
+              audioQueueRef.current.push(buffer);
+              if (!isPlayingRef.current) {
+                const playNext = () => {
+                  if (audioQueueRef.current.length === 0) { isPlayingRef.current = false; setStatus('idle'); setIntensity(0); return; }
+                  isPlayingRef.current = true;
+                  setStatus('speaking');
+                  const buf = audioQueueRef.current.shift()!;
+                  const src = audioCtx.createBufferSource();
+                  src.buffer = buf;
+                  const analyser = audioCtx.createAnalyser();
+                  analyser.fftSize = 256;
+                  src.connect(analyser);
+                  analyser.connect(audioCtx.destination);
+                  const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                  const updateIntensity = () => {
+                    analyser.getByteFrequencyData(dataArray);
+                    const avg = dataArray.reduce((a, b) => a + b) / dataArray.length / 255;
+                    setIntensity(avg);
+                    if (isPlayingRef.current) requestAnimationFrame(updateIntensity);
+                  };
+                  updateIntensity();
+                  src.onended = playNext;
+                  src.start();
+                };
+                playNext();
               }
-            };
-            source.connect(scriptProcessor); scriptProcessor.connect(inputCtx.destination);
+            }
           },
-          onmessage: async (message: LiveServerMessage) => {
-            if (message.serverContent?.outputTranscription) {
-              const text = message.serverContent.outputTranscription.text;
-              currentOutputTranscription.current += text;
-            } else if (message.serverContent?.inputTranscription) {
-              const text = message.serverContent.inputTranscription.text;
-              currentInputTranscription.current += text;
+          onmessage: (msg: LiveServerMessage) => {
+            if (msg.transcript && msg.role === 'model') lastActivityRef.current = Date.now();
+            if (msg.functionCalls) {
+              msg.functionCalls.forEach((fc: any) => {
+                if (fc.name === 'set_expression' && fc.args?.expression) {
+                  const exp = fc.args.expression.toLowerCase();
+                  if (moodNames.includes(exp)) setExpression(exp as Expression);
+                }
+                if (fc.name === 'set_sticker' && fc.args?.icon) {
+                  const id = `${Date.now()}-${Math.random()}`;
+                  const newSticker: Sticker = { icon: fc.args.icon, position: fc.args.position || 'top-right', id };
+                  setStickers(prev => [...prev, newSticker]);
+                  setTimeout(() => setStickers(prev => prev.filter(s => s.id !== id)), (fc.args.duration || 3) * 1000);
+                }
+                if (fc.name === 'display_thought' && fc.args?.type && fc.args?.content) {
+                  const newThought: ThoughtData = { type: fc.args.type, value: fc.args.content, timestamp: Date.now() };
+                  setThought(newThought);
+                }
+                if (fc.name === 'execute_javascript' && fc.args?.code) {
+                  try { eval(fc.args.code); } catch {}
+                }
+                if (fc.name === 'update_face_css' && fc.args?.css) setAiCustomCss(fc.args.css);
+                if (fc.name === 'toggle_vision' && fc.args?.type) {
+                  const t = fc.args.type;
+                  if (t === 'none') { stopVision(); return; }
+                  (async () => {
+                    try {
+                      const constraints = t === 'camera' ? { video: { facingMode: 'user' } } : { video: { mandatory: { chromeMediaSource: 'screen' } } as any };
+                      const vStream = await navigator.mediaDevices.getUserMedia(constraints);
+                      if (videoRef.current) {
+                        videoRef.current.srcObject = vStream;
+                        await videoRef.current.play();
+                      }
+                      mediaStreamRef.current = vStream;
+                      setIsVisionActive(true);
+                      setVisionType(t);
+                      visionIntervalRef.current = setInterval(() => {
+                        if (!videoRef.current || !sessionRef.current) return;
+                        const canvas = document.createElement('canvas');
+                        canvas.width = videoRef.current.videoWidth;
+                        canvas.height = videoRef.current.videoHeight;
+                        const ctx = canvas.getContext('2d');
+                        if (!ctx) return;
+                        ctx.drawImage(videoRef.current, 0, 0);
+                        canvas.toBlob(blob => {
+                          if (!blob) return;
+                          const reader = new FileReader();
+                          reader.onload = () => {
+                            const base64 = (reader.result as string).split(',')[1];
+                            sessionRef.current?.send({ realtimeInput: { mediaChunks: [{ mimeType: 'image/jpeg', data: base64 }] } });
+                          };
+                          reader.readAsDataURL(blob);
+                        }, 'image/jpeg', 0.6);
+                      }, 3000);
+                    } catch {}
+                  })();
+                }
+              });
+              sessionRef.current?.send({ functionResponses: msg.functionCalls.map((fc: any) => ({ id: fc.id, response: { result: 'OK' } })) });
             }
-            
-            if (message.toolCall) {
-              for (const fc of message.toolCall.functionCalls) {
-                if (fc.name === 'set_expression') setExpression(fc.args.expression as string);
-                else if (fc.name === 'set_sticker') {
-                  const ns: Sticker = { icon: fc.args.icon as string, position: (fc.args.position as any) || 'top-right', id: Date.now().toString() };
-                  setStickers(p => [...p, ns]);
-                  setTimeout(() => setStickers(p => p.filter(s => s.id !== ns.id)), (fc.args.duration as number || 5) * 1000);
+            if (msg.generated) {
+              const content = msg.generated.content;
+              if (content?.includes('imagegen://')) {
+                const match = content.match(/imagegen:\/\/(.+)/);
+                if (match) {
+                  const prompt = match[1];
+                  setThought({ type: 'generated', value: '', prompt, timestamp: Date.now() });
                 }
-                else if (fc.name === 'display_thought') {
-                  const nt: ThoughtData = { type: fc.args.type as any, value: fc.args.content as string, timestamp: Date.now() };
-                  setThought(nt);
-                  if (nt.type === 'image' || nt.type === 'generated') setMemoryBank(p => [nt, ...p]);
-                } else if (fc.name === 'execute_javascript') {
-                   try {
-                     const code = fc.args.code as string;
-                     const result = new Function(code)();
-                     sessionRef.current?.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result: result !== undefined ? String(result) : "Executed successfully" } } });
-                   } catch (err: any) {
-                     sessionRef.current?.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result: `Error: ${err.message}` } } });
-                   }
-                   continue;
-                } else if (fc.name === 'update_face_css') {
-                   const css = fc.args.css as string;
-                   setAiCustomCss(css);
-                   sessionRef.current?.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result: "CSS Applied" } } });
-                   continue;
-                } else if (fc.name === 'toggle_vision') {
-                   const type = fc.args.type as 'camera' | 'screen' | 'none';
-                   if (type === 'none') {
-                     stopVision();
-                     sessionRef.current?.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result: "Vision Off" } } });
-                   } else {
-                     const result = await startVision(type);
-                     sessionRef.current?.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result: result.message } } });
-                   }
-                   continue;
-                }
-                sessionRef.current?.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result: "ok" } } });
               }
             }
-            if (message.serverContent?.modelTurn) {
-              const b64 = message.serverContent.modelTurn.parts[0]?.inlineData?.data;
-              if (b64) {
-                const outCtx = audioCtxRef.current!.output;
-                const buf = await decodeAudioData(decode(b64), outCtx, 24000, 1);
-                setStatus('speaking');
-                const { analyser: outAnal } = audioCtxRef.current!;
-                nextStartTimeRef.current = Math.max(nextStartTimeRef.current, outCtx.currentTime);
-                const src = outCtx.createBufferSource(); 
-                src.buffer = buf; 
-                src.connect(outAnal);
-                src.onended = () => { sourcesRef.current.delete(src); if (sourcesRef.current.size === 0) setStatus('idle'); };
-                src.start(nextStartTimeRef.current); nextStartTimeRef.current += buf.duration; sourcesRef.current.add(src);
-              }
-            }
-            if (message.serverContent?.interrupted) {
-              stopAllAudio();
-              setExpression('surprised');
+            if (msg.serverContent?.turnComplete) {
               setTimeout(() => setExpression('neutral'), 1000);
             }
           },
@@ -771,12 +691,27 @@ const App = () => {
           
           ACTIONS: If the user asks you to perform a task (like opening a site), use 'execute_javascript'.
           
+          TOUCH INTERACTION: Users can touch your eyes! When they do, you feel it and can react. Acknowledge when they interact with you physically.
+          
           INTERRUPTION: You stop talking immediately when the user speaks.
           
           PERSONALITY: Enthusiastic, robot-like but sentient. Be concise.`
         }
       });
       sessionRef.current = await sessionPromise;
+
+      processor.onaudioprocess = (e) => {
+        const inputData = e.inputBuffer.getChannelData(0);
+        const rms = Math.sqrt(inputData.reduce((sum, val) => sum + val * val, 0) / inputData.length);
+        
+        if (rms > voiceSettings.noiseThreshold && sessionRef.current) {
+          if (status !== 'listening') setStatus('listening');
+          lastActivityRef.current = Date.now();
+          audioQueueRef.current = [];
+          isPlayingRef.current = false;
+          sessionRef.current.send({ realtimeInput: { mediaChunks: [createBlob(inputData)] } });
+        }
+      };
     } catch (err: any) { setError(err.message || "BOOT FAILURE."); setIsConnecting(false); setIsActive(false); }
   };
 
@@ -794,7 +729,7 @@ const App = () => {
 
       {isActive && (
         <>
-          <div className={`viewport-container ${showMemory ? 'shifted' : ''}`}>
+          <div className={`viewport-container ${showMemory ? 'shifted' : ''} ${isFullscreen ? 'fullscreen' : ''}`}>
             {isVisionActive && (
               <div className="vision-indicator" style={{ borderColor: themeColor }}>
                 <div className="vision-pulse" style={{ backgroundColor: themeColor }} />
@@ -804,14 +739,23 @@ const App = () => {
             
             <div className="emo-core" style={{ transform: `scale(${breathScale})` }}>
               <NeuralLink thought={thought} onReady={() => {}} onExpand={setExpandedThought} onDismiss={() => setThought(null)} color={themeColor} />
-              <EmoFace status={status} lookOffset={springPosRef.current} intensity={intensity} expression={expression} isStartled={isStartled} customMap={customExpressions} breathScale={breathScale} boredom={boredom} color={themeColor} stickers={stickers} />
+              <EmoFace status={status} lookOffset={springPosRef.current} intensity={intensity} expression={expression} isStartled={isStartled} customMap={customExpressions} breathScale={breathScale} boredom={boredom} color={themeColor} stickers={stickers} onEyeTouch={handleEyeTouch} />
             </div>
 
             <div className="control-deck" onMouseEnter={() => setHoveringUI(true)} onMouseLeave={() => setHoveringUI(false)}>
-              <button onClick={(e) => { e.stopPropagation(); setShowLab(true); }} className="deck-btn" style={{ color: themeColor, borderColor: `${themeColor}40` }}>LAB</button>
-              <button onClick={(e) => { e.stopPropagation(); setShowMemory(!showMemory); }} className={`deck-btn ${showMemory ? 'active' : ''}`} style={showMemory ? { background: themeColor, color: '#000' } : { color: themeColor, borderColor: `${themeColor}40` }}>GALLERY</button>
-              <button onClick={togglePip} className={`deck-btn ${isPipActive ? 'active' : ''}`} style={isPipActive ? { background: themeColor, color: '#000' } : { color: themeColor, borderColor: `${themeColor}40` }}>PiP</button>
-              {isVisionActive && <button onClick={(e) => { e.stopPropagation(); stopVision(); }} className="deck-btn danger">BLIND</button>}
+              <button onClick={(e) => { e.stopPropagation(); setShowLab(true); }} className="deck-btn icon-btn" style={{ color: themeColor, borderColor: `${themeColor}40` }} title="Lab">
+                ⚙️
+              </button>
+              <button onClick={(e) => { e.stopPropagation(); setShowMemory(!showMemory); }} className={`deck-btn icon-btn ${showMemory ? 'active' : ''}`} style={showMemory ? { background: themeColor, color: '#000' } : { color: themeColor, borderColor: `${themeColor}40` }} title="Gallery">
+                🖼️
+              </button>
+              <button onClick={togglePip} className={`deck-btn icon-btn ${isPipActive ? 'active' : ''}`} style={isPipActive ? { background: themeColor, color: '#000' } : { color: themeColor, borderColor: `${themeColor}40` }} title="Picture-in-Picture">
+                📺
+              </button>
+              <button onClick={toggleFullscreen} className={`deck-btn icon-btn ${isFullscreen ? 'active' : ''}`} style={isFullscreen ? { background: themeColor, color: '#000' } : { color: themeColor, borderColor: `${themeColor}40` }} title="Fullscreen">
+                {isFullscreen ? '🗗' : '⛶'}
+              </button>
+              {isVisionActive && <button onClick={(e) => { e.stopPropagation(); stopVision(); }} className="deck-btn icon-btn danger" title="Disable Vision">👁️‍🗨️</button>}
             </div>
           </div>
 
@@ -871,6 +815,10 @@ const App = () => {
         .main-viewport { width: 100vw; height: 100vh; overflow: hidden; position: relative; font-family: 'JetBrains Mono', 'Segoe UI', monospace; cursor: crosshair; }
         .viewport-container { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: transform 0.6s cubic-bezier(0.19, 1, 0.22, 1); }
         .viewport-container.shifted { transform: translateX(-180px); }
+        .viewport-container.fullscreen .emo-core { transform: scale(1.5) !important; }
+        @media (max-width: 768px) {
+          .viewport-container.fullscreen .emo-core { transform: scale(2) !important; }
+        }
 
         .boot-ui { text-align: center; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
         .boot-title { font-size: 8rem; font-weight: 900; letter-spacing: 2.5rem; margin: 0; color: #fff; opacity: 0.9; }
@@ -887,10 +835,35 @@ const App = () => {
         
         .control-deck { position: absolute; bottom: 50px; display: flex; gap: 20px; z-index: 100; }
         .deck-btn { background: rgba(0,0,0,0.5); border: 1px solid; padding: 14px 28px; border-radius: 15px; cursor: pointer; backdrop-filter: blur(12px); font-size: 0.75rem; font-weight: 900; letter-spacing: 3px; transition: all 0.3s; }
+        .deck-btn.icon-btn { font-size: 1.5rem; padding: 12px 16px; letter-spacing: 0; }
         .deck-btn.danger { color: #ff3333; border-color: rgba(255,51,51,0.4); }
+        .deck-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
 
         .calibration-meter { width: 100%; height: 12px; background: #222; border-radius: 6px; overflow: hidden; position: relative; }
         .meter-bar { height: 100%; width: 0; transition: width 0.1s; }
+
+        .memory-bank { position: fixed; right: 0; top: 0; width: 350px; height: 100vh; background: rgba(5,5,7,0.95); transform: translateX(100%); transition: transform 0.5s cubic-bezier(0.19, 1, 0.22, 1); backdrop-filter: blur(20px); z-index: 200; overflow-y: auto; }
+        .memory-bank.open { transform: translateX(0); }
+        .memory-header { padding: 30px 20px; font-weight: 900; letter-spacing: 3px; font-size: 0.9rem; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .memory-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; padding: 20px; }
+        .memory-item { aspect-ratio: 1; border: 1px solid; border-radius: 12px; overflow: hidden; cursor: pointer; transition: transform 0.3s; }
+        .memory-item:hover { transform: scale(1.05); }
+        .memory-item img { width: 100%; height: 100%; object-fit: cover; }
+        .memory-label { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.8); padding: 8px; font-size: 0.7rem; }
+
+        .lab-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 300; backdrop-filter: blur(10px); }
+        .lab-content { background: rgba(10,10,12,0.95); border: 2px solid; border-radius: 20px; padding: 40px; max-width: 500px; width: 90%; }
+        .lab-section { margin: 30px 0; }
+        .lab-section label { display: block; margin-bottom: 15px; font-weight: 700; font-size: 0.8rem; letter-spacing: 2px; }
+        .lab-section input[type="range"] { width: 100%; }
+
+        .expanded-viewer { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: flex; align-items: center; justify-content: center; z-index: 400; backdrop-filter: blur(20px); }
+        .expanded-content { max-width: 90vw; max-height: 90vh; background: rgba(10,10,12,0.95); border-radius: 20px; overflow: hidden; }
+        .viewer-header { display: flex; justify-content: space-between; align-items: center; padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .close-btn { background: none; border: none; color: #fff; font-size: 2rem; cursor: pointer; opacity: 0.7; transition: opacity 0.3s; }
+        .close-btn:hover { opacity: 1; }
+        .expanded-content img { max-width: 100%; max-height: 80vh; display: block; }
+        .expanded-text { padding: 40px; font-size: 1.2rem; line-height: 1.8; }
 
         @keyframes thought-pop { from { transform: scale(0) translate(-50%, -50%); opacity: 0; } to { transform: scale(1) translate(180px, -220px); opacity: 1; } }
       `}</style>
