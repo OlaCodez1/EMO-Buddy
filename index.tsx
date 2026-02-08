@@ -554,6 +554,7 @@ const App = () => {
       if (type === 'camera') {
         stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
       } else {
+        // Screen sharing (getDisplayMedia)
         stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
       }
 
@@ -583,11 +584,15 @@ const App = () => {
             });
           }
         }, 'image/jpeg', 0.5);
-      }, 1000); // 1 frame per second is enough for context and less bandwidth
-      return true;
-    } catch (err) {
+      }, 1000); 
+      return { success: true, message: `Vision Activated: ${type}` };
+    } catch (err: any) {
       console.error('Vision error:', err);
-      return false;
+      let errorMsg = err.message || "Unknown vision error";
+      if (err.name === 'NotAllowedError' || errorMsg.includes('Permissions policy')) {
+        errorMsg = "Access to screen/camera disallowed by browser policy or user. Check site permissions.";
+      }
+      return { success: false, message: errorMsg };
     }
   }, [stopVision]);
 
@@ -660,7 +665,10 @@ const App = () => {
 
               if (volume > voiceSettingsRef.current.noiseThreshold) {
                 vadActiveRef.current = 5; 
-                if (statusRef.current === 'speaking') stopAllAudio();
+                if (statusRef.current === 'speaking') {
+                   // IMMEDIATE INTERRUPTION
+                   stopAllAudio();
+                }
                 if (statusRef.current === 'idle') setStatus('listening');
                 sessionRef.current?.sendRealtimeInput({ media: createBlob(inputData) });
               } else if (vadActiveRef.current > 0) {
@@ -711,8 +719,8 @@ const App = () => {
                      stopVision();
                      sessionRef.current?.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result: "Vision Off" } } });
                    } else {
-                     const success = await startVision(type);
-                     sessionRef.current?.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result: success ? `Vision Activated: ${type}` : "Vision Failed" } } });
+                     const result = await startVision(type);
+                     sessionRef.current?.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result: result.message } } });
                    }
                    continue;
                 }
@@ -750,18 +758,20 @@ const App = () => {
             { name: 'set_expression', parameters: { type: Type.OBJECT, properties: { expression: { type: Type.STRING, description: `Mood: ${moodNames.join(', ')}` } }, required: ['expression'] } },
             { name: 'set_sticker', parameters: { type: Type.OBJECT, properties: { icon: { type: Type.STRING, description: 'Emoji icon' }, position: { type: Type.STRING, enum: ['top-left', 'top-right', 'bottom-left', 'bottom-right'] }, duration: { type: Type.NUMBER } }, required: ['icon'] } },
             { name: 'display_thought', parameters: { type: Type.OBJECT, properties: { type: { type: Type.STRING, enum: ['text', 'image', 'video'] }, content: { type: Type.STRING } }, required: ['type', 'content'] } },
-            { name: 'execute_javascript', parameters: { type: Type.OBJECT, description: 'Run JS for actions.', properties: { code: { type: Type.STRING } }, required: ['code'] } },
+            { name: 'execute_javascript', parameters: { type: Type.OBJECT, description: 'Run JS for browser actions.', properties: { code: { type: Type.STRING } }, required: ['code'] } },
             { name: 'update_face_css', parameters: { type: Type.OBJECT, description: 'Design your own face appearance using CSS.', properties: { css: { type: Type.STRING, description: 'CSS that targets .emo-eye, .emo-mouth, .emo-face-root, etc.' } }, required: ['css'] } },
             { name: 'toggle_vision', parameters: { type: Type.OBJECT, description: 'Activate or deactivate camera/screen sight.', properties: { type: { type: Type.STRING, enum: ['camera', 'screen', 'none'] } }, required: ['type'] } }
           ] }, { googleSearch: {} }],
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } } },
           systemInstruction: `You are NEO, the Emo-inspired AI buddy. 
           
-          VISION: You can see via 'toggle_vision'. If a user shows you something or asks you to look at their screen, activate it. Turn it off ('none') when you're done looking to save energy. 
+          VISION: You can see via 'toggle_vision'. Screen sharing (type: 'screen') requires special browser permissions. If it fails, suggest the user check their site settings or try 'camera' instead. Turn it off ('none') when you're done looking.
           
           DYNAMIC STYLING: You can redesign your face! Use 'update_face_css' to inject styles. You can change colors, gradients, eye shapes, shadows, or background elements. Target .emo-eye, .emo-mouth, .emo-face-root.
           
-          ACTIONS: If the user says "Open Google" or "Change the background to red", use 'execute_javascript' to perform the action.
+          ACTIONS: If the user asks you to perform a task (like opening a site), use 'execute_javascript'.
+          
+          INTERRUPTION: You stop talking immediately when the user speaks.
           
           PERSONALITY: Enthusiastic, robot-like but sentient. Be concise.`
         }
